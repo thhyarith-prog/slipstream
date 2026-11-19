@@ -4,7 +4,7 @@
 
 <p align="center">Make WordPress fast: page cache with automatic clearing and preloading, browser caching, deferred or delayed JavaScript, lazy media, YouTube click-to-load, CDN and database clean-up.</p>
 
-<p align="center">Version 1.0.3 · WordPress 6.0+ · PHP 7.4+ · GPL-2.0-or-later · by <a href="https://www.prasatdigital.com">Prasat Digital</a></p>
+<p align="center">Version 1.0.4 · WordPress 6.0+ · PHP 7.4+ · GPL-2.0-or-later · by <a href="https://www.prasatdigital.com">Prasat Digital</a></p>
 
 ---
 
