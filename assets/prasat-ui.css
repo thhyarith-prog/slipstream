@@ -1,0 +1,238 @@
+/*
+ * Prasat UI kit — shared admin look for Prasat Digital WordPress plugins.
+ * Navy #0C1D3F with an indigo → teal accent (#818CF8 → #2DD4BF), Inter + Noto Sans Khmer.
+ * Corners: controls 6px, cards 10px, panels 12px; fully round only for dots, count badges,
+ * progress bars and switches. Flat: borders, no decorative shadows.
+ * Everything is scoped to .pd-app (and body.pd-body for the page background).
+ */
+
+@font-face { font-family: 'Prasat Inter'; font-style: normal; font-weight: 400; font-display: swap; src: url(fonts/inter-latin-400-normal.woff2) format('woff2'); }
+@font-face { font-family: 'Prasat Inter'; font-style: normal; font-weight: 600; font-display: swap; src: url(fonts/inter-latin-600-normal.woff2) format('woff2'); }
+@font-face { font-family: 'Prasat Inter'; font-style: normal; font-weight: 700; font-display: swap; src: url(fonts/inter-latin-700-normal.woff2) format('woff2'); }
+@font-face { font-family: 'Prasat Khmer'; font-style: normal; font-weight: 400; font-display: swap; src: url(fonts/noto-sans-khmer-khmer-400-normal.woff2) format('woff2'); unicode-range: U+1780-17FF, U+19E0-19FF, U+200C-200D, U+25CC; }
+@font-face { font-family: 'Prasat Khmer'; font-style: normal; font-weight: 600; font-display: swap; src: url(fonts/noto-sans-khmer-khmer-600-normal.woff2) format('woff2'); unicode-range: U+1780-17FF, U+19E0-19FF, U+200C-200D, U+25CC; }
+@font-face { font-family: 'Prasat Khmer'; font-style: normal; font-weight: 700; font-display: swap; src: url(fonts/noto-sans-khmer-khmer-700-normal.woff2) format('woff2'); unicode-range: U+1780-17FF, U+19E0-19FF, U+200C-200D, U+25CC; }
+
+.pd-app {
+	--pd-navy: #0c1d3f;
+	--pd-indigo: #4f46e5;
+	--pd-indigo-dark: #4338ca;
+	--pd-indigo-soft: #eef2ff;
+	--pd-indigo-line: #c7d2fe;
+	--pd-grad: linear-gradient(135deg, #818cf8 0%, #2dd4bf 100%);
+	--pd-ok: #0f766e;
+	--pd-ok-bg: #f0fdfa;
+	--pd-ok-line: #99f6e4;
+	--pd-bad: #b91c1c;
+	--pd-bad-bg: #fef2f2;
+	--pd-bad-line: #fecaca;
+	--pd-warn: #b45309;
+	--pd-warn-bg: #fffbeb;
+	--pd-warn-line: #fde68a;
+	--pd-ink: #1c1917;
+	--pd-text: #44403c;
+	--pd-muted: #6b6560;
+	--pd-control: #8f8984; /* 3:1 on white: inputs, checkboxes, switch track */
+	--pd-line: #e7e5e4;
+	--pd-line-strong: #d6d3d1;
+	--pd-soft: #f5f5f4;
+	--pd-r-control: 6px;
+	--pd-r-card: 10px;
+	--pd-r-panel: 12px;
+	--pd-font: 'Prasat Inter', 'Prasat Khmer', 'Inter', 'Noto Sans Khmer', system-ui, -apple-system, 'Segoe UI', sans-serif;
+	max-width: 1200px; font-family: var(--pd-font); color: var(--pd-text); font-size: 14px;
+}
+body.pd-body { background: #f5f5f4; }
+html[lang^="km"] .pd-app { line-height: 1.6; }
+.pd-app h1, .pd-app h2, .pd-app h3, .pd-app strong, .pd-app legend { color: var(--pd-ink); font-family: var(--pd-font); }
+.pd-app [hidden] { display: none !important; }
+.pd-app a { color: var(--pd-indigo); }
+.pd-app a:hover { color: var(--pd-indigo-dark); }
+.pd-app a:focus, .pd-app summary:focus { box-shadow: none; outline: none; }
+.pd-app a:focus-visible, .pd-app summary:focus-visible, .pd-app button:focus-visible { outline: 2px solid var(--pd-indigo); outline-offset: 2px; border-radius: 4px; }
+.pd-app .pd-brand a:focus-visible { outline-color: #a5b4fc; }
+.pd-app code, .pd-app .code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; background: var(--pd-soft); border-radius: 4px; padding: 1px 5px; }
+
+/* ------------------------------------------------------------------ brand header */
+.pd-brand { position: relative; overflow: hidden; isolation: isolate; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin: 14px 0 12px; padding: 18px 22px; background: var(--pd-navy); border-radius: var(--pd-r-panel); color: #fff; }
+.pd-brand::before, .pd-brand::after { content: ''; position: absolute; z-index: -1; border-radius: 50%; pointer-events: none; }
+.pd-brand::before { width: 360px; height: 360px; left: -130px; top: -200px; background: radial-gradient(closest-side, rgba(129, 140, 248, .5), rgba(129, 140, 248, 0)); }
+.pd-brand::after { width: 400px; height: 400px; right: -120px; bottom: -260px; background: radial-gradient(closest-side, rgba(45, 212, 191, .35), rgba(45, 212, 191, 0)); }
+.pd-brand__id { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.pd-brand__mark { flex: none; width: 44px; height: 44px; border-radius: var(--pd-r-card); background: var(--pd-grad); display: grid; place-items: center; color: #fff; }
+.pd-brand__mark svg { width: 26px; height: 26px; display: block; }
+.pd-brand__mark--icon { width: 48px; height: 48px; border-radius: 11px; background: none; overflow: hidden; box-shadow: 0 0 0 1px rgba(255, 255, 255, .16), 0 6px 16px rgba(0, 0, 0, .28); }
+.pd-brand__mark--icon img { width: 100%; height: 100%; display: block; }
+#wpfooter .pd-foot-credit em { font-style: italic; }
+#wpfooter .pd-foot-credit a { color: inherit; font-weight: 600; }
+.pd-app .pd-brand h1, .pd-app .pd-brand__name { margin: 0; padding: 0; font-size: 20px; font-weight: 700; line-height: 1.2; color: #fff; }
+.pd-brand__tag { margin: 3px 0 0; font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; background: linear-gradient(90deg, #a5b4fc, #5eead4); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.pd-brand__side { display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap; justify-content: flex-end; }
+.pd-app .pd-brand__status { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid rgba(255, 255, 255, .18); border-radius: var(--pd-r-control); background: rgba(255, 255, 255, .06); font-size: 13px; font-weight: 600; color: #fff; text-decoration: none; }
+.pd-app .pd-brand__status:hover { color: #fff; background: rgba(255, 255, 255, .1); }
+.pd-brand__status small { font-weight: 400; color: rgba(255, 255, 255, .65); font-size: 12px; }
+.pd-app .pd-credit { display: inline-flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--pd-r-control); color: rgba(255, 255, 255, .6); font-size: 12px; text-decoration: none; white-space: nowrap; }
+.pd-app .pd-credit:hover, .pd-app .pd-credit:focus { background: rgba(255, 255, 255, .1); color: rgba(255, 255, 255, .8); }
+.pd-credit img { width: 20px; height: 20px; flex: none; }
+.pd-credit b { color: #fff; font-weight: 600; text-decoration: underline; text-decoration-color: rgba(255, 255, 255, .4); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+.pd-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: #5eead4; }
+.pd-dot--warn { background: #fbbf24; }
+.pd-dot--bad { background: #f87171; }
+.pd-dot--off { background: #a8a29e; }
+
+/* Tabs: Prasat chips; the active one is filled navy. */
+.pd-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 18px; }
+.pd-app .pd-tabs a { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 14px; border: 1px solid var(--pd-line); border-radius: var(--pd-r-control); background: #fff; color: var(--pd-text); font-weight: 600; text-decoration: none; white-space: nowrap; transition: border-color .15s, background-color .15s, color .15s; }
+.pd-app .pd-tabs a:hover { border-color: var(--pd-line-strong); color: var(--pd-ink); }
+.pd-app .pd-tabs a.is-active { background: var(--pd-navy); border-color: var(--pd-navy); color: #fff; }
+.pd-tabs .pd-count { background: var(--pd-soft); }
+.pd-tabs a.is-active .pd-count { background: rgba(255, 255, 255, .16); color: #fff; }
+
+/* ------------------------------------------------------------------ layout */
+.pd-grid { display: grid; gap: 16px; margin-bottom: 16px; align-items: start; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.pd-grid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.pd-grid--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: stretch; }
+.pd-grid--wide { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }
+@media (max-width: 1100px) { .pd-grid--4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .pd-grid--3 { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 1000px) { .pd-grid, .pd-grid--wide { grid-template-columns: minmax(0, 1fr); } }
+.pd-card { background: #fff; border: 1px solid var(--pd-line); border-radius: var(--pd-r-card); padding: 20px 22px; margin-bottom: 16px; }
+.pd-grid > .pd-card, .pd-grid > div > .pd-card:last-child { margin-bottom: 0; }
+.pd-app .pd-card h2 { font-size: 16px; font-weight: 700; margin: 0 0 14px; display: flex; align-items: center; gap: 8px; }
+.pd-app .pd-card h2 + .pd-lead { margin-top: -8px; }
+.pd-app .pd-card h3 { font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--pd-muted); margin: 22px 0 8px; }
+.pd-lead { color: var(--pd-muted); margin: 0 0 14px; max-width: 760px; }
+.pd-muted, .pd-app .description { color: var(--pd-muted); }
+.pd-app .description { font-size: 13px; margin-top: 6px; }
+.pd-empty { color: var(--pd-muted); padding: 12px 0; margin: 0; }
+.pd-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.pd-sep { border: 0; border-top: 1px solid var(--pd-line); margin: 18px 0; }
+
+/* ------------------------------------------------------------------ controls */
+.pd-app .button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 0 14px; line-height: 1.2; vertical-align: middle; border: 1px solid var(--pd-control); border-radius: var(--pd-r-control); background: #fff; color: var(--pd-ink); font-family: var(--pd-font); font-weight: 600; font-size: 13px; box-shadow: none; text-shadow: none; transition: background .15s, border-color .15s, transform .15s; }
+.pd-app .button:hover { background: var(--pd-soft); border-color: var(--pd-control); color: var(--pd-ink); }
+.pd-app .button:active { transform: scale(.98); }
+.pd-app .button:focus { box-shadow: none; outline: none; }
+.pd-app .button:focus-visible { outline: 2px solid var(--pd-indigo); outline-offset: 2px; }
+.pd-app .button-primary { background: var(--pd-indigo); border-color: var(--pd-indigo); color: #fff; }
+.pd-app .button-primary:hover { background: var(--pd-indigo-dark); border-color: var(--pd-indigo-dark); color: #fff; }
+.pd-app .button-primary:focus { background: var(--pd-indigo); border-color: var(--pd-indigo); color: #fff; }
+.pd-app .button[disabled], .pd-app .button-primary[disabled], .pd-app .button[aria-disabled="true"] { background: var(--pd-soft) !important; border-color: var(--pd-line) !important; color: var(--pd-muted) !important; cursor: not-allowed; transform: none; }
+/* Busy: the button keeps its colour and shows a small spinner. */
+.pd-app .button[aria-busy="true"] { pointer-events: none; opacity: .85; }
+.pd-app .button[aria-busy="true"]::before { content: ''; width: 12px; height: 12px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: pd-spin .7s linear infinite; }
+@keyframes pd-spin { to { transform: rotate(360deg); } }
+/* WordPress "link" buttons stay links inside the kit. */
+.pd-app .button.button-link, .pd-app .button-link { min-height: 0; padding: 0; border: 0; background: none; color: var(--pd-indigo); text-decoration: underline; text-underline-offset: 2px; }
+.pd-app .button.button-link:hover { background: none; color: var(--pd-indigo-dark); }
+.pd-app .button.button-hero { min-height: 46px; padding: 0 22px; font-size: 15px; }
+.pd-app .button.button-large { min-height: 42px; padding: 0 18px; font-size: 14px; }
+.pd-app .button.button-small { min-height: 30px; padding: 0 10px; font-size: 12px; }
+.pd-app .button.button-link-delete, .pd-app .button.pd-danger { color: var(--pd-bad); border-color: var(--pd-bad-line); background: #fff; }
+.pd-app .button.button-link-delete:hover, .pd-app .button.pd-danger:hover { background: var(--pd-bad-bg); color: var(--pd-bad); }
+.pd-app .button .dashicons { font-size: 16px; width: 16px; height: 16px; }
+
+.pd-app input[type="text"], .pd-app input[type="email"], .pd-app input[type="password"], .pd-app input[type="url"], .pd-app input[type="number"], .pd-app input[type="search"], .pd-app select, .pd-app textarea { min-height: 36px; padding: 6px 10px; border: 1px solid var(--pd-control); border-radius: var(--pd-r-control); background-color: #fff; color: var(--pd-ink); font-family: var(--pd-font); font-size: 14px; box-shadow: none; max-width: 100%; transition: border-color .15s, box-shadow .15s; }
+.pd-app select { padding-right: 28px; }
+.pd-app textarea.code, .pd-app input.code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; background: #fff; padding: 6px 10px; }
+.pd-app input:focus, .pd-app select:focus, .pd-app textarea:focus { border-color: var(--pd-indigo); box-shadow: 0 0 0 1px var(--pd-indigo); outline: none; }
+.pd-app input:disabled, .pd-app select:disabled, .pd-app textarea:disabled { background-color: var(--pd-soft); border-color: var(--pd-line-strong); color: var(--pd-muted); cursor: not-allowed; }
+.pd-app [aria-invalid="true"] { border-color: var(--pd-bad) !important; }
+.pd-app input[readonly] { background: var(--pd-soft); }
+.pd-app input[type="checkbox"], .pd-app input[type="radio"] { width: 18px; height: 18px; min-width: 18px; margin: 0; border-color: var(--pd-control); box-shadow: none; }
+.pd-app input[type="checkbox"] { border-radius: 4px; }
+.pd-app input[type="checkbox"]:checked { background: var(--pd-indigo); border-color: var(--pd-indigo); }
+.pd-app input[type="checkbox"]:checked::before { content: ''; width: 100%; height: 100%; margin: 0; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8.5l3 3 6-7' fill='none' stroke='%23fff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 100% no-repeat; }
+.pd-app input[type="radio"]:checked { border-color: var(--pd-indigo); background: #fff; }
+.pd-app input[type="radio"]:checked::before { background-color: var(--pd-indigo); width: 8px; height: 8px; margin: 4px; }
+.pd-app input[type="checkbox"]:focus, .pd-app input[type="radio"]:focus { box-shadow: none; }
+.pd-app input[type="checkbox"]:focus-visible, .pd-app input[type="radio"]:focus-visible { outline: 2px solid var(--pd-indigo); outline-offset: 2px; }
+
+/* Switch (fully round is allowed for switches). The checkbox stays real and focusable. */
+.pd-switch { position: relative; display: inline-flex; flex: none; width: 40px; height: 22px; cursor: pointer; }
+.pd-app .pd-switch input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; z-index: 1; }
+.pd-switch span { position: absolute; inset: 0; border-radius: 999px; background: var(--pd-control); transition: background .15s; }
+.pd-switch:hover span { background: var(--pd-muted); }
+.pd-switch:hover input:checked + span { background: var(--pd-indigo-dark); }
+.pd-switch span::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .15s; }
+.pd-switch input:checked + span { background: var(--pd-indigo); }
+.pd-switch input:checked + span::after { transform: translateX(18px); }
+.pd-switch input:focus-visible + span { outline: 2px solid var(--pd-indigo); outline-offset: 2px; }
+.pd-switch input:disabled + span { opacity: .45; }
+
+/* Setting rows: text on the left, control on the right. */
+.pd-rows { border: 1px solid var(--pd-line); border-radius: var(--pd-r-card); overflow: hidden; }
+.pd-row { display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; padding: 14px 16px; background: #fff; }
+.pd-row + .pd-row { border-top: 1px solid var(--pd-line); }
+.pd-row__text { min-width: 0; flex: 1; }
+.pd-row__title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-weight: 600; color: var(--pd-ink); }
+.pd-row__desc { margin: 3px 0 0; color: var(--pd-muted); font-size: 13px; max-width: 680px; }
+.pd-row__more { margin-top: 10px; }
+.pd-row__more textarea { width: 100%; max-width: 640px; }
+.pd-row__control { flex: none; display: flex; align-items: center; gap: 8px; padding-top: 1px; }
+.pd-row.is-off .pd-row__more { display: none; }
+@media (max-width: 600px) { .pd-row { flex-wrap: wrap; } }
+
+/* Choice chips */
+.pd-picks { display: flex; flex-wrap: wrap; gap: 8px; }
+.pd-app .pd-pick { position: relative; display: inline-flex; margin: 0; cursor: pointer; }
+.pd-app .pd-pick input[type="checkbox"], .pd-app .pd-pick input[type="radio"] { position: absolute; inset: 0; width: 100%; height: 100%; min-width: 0; margin: 0; opacity: 0; cursor: pointer; z-index: 1; }
+.pd-pick span { display: inline-flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 14px 0 11px; border: 1px solid var(--pd-line); border-radius: var(--pd-r-control); background: #fff; color: var(--pd-text); font-size: 13px; font-weight: 600; line-height: 1.2; white-space: nowrap; transition: border-color .15s, background-color .15s, color .15s; }
+.pd-pick span::before { content: ''; flex: none; box-sizing: border-box; width: 16px; height: 16px; border: 1.5px solid var(--pd-control); border-radius: 4px; background: #fff center / 12px 12px no-repeat; }
+.pd-pick input[type="radio"] + span::before { border-radius: 50%; }
+.pd-pick:hover span { border-color: var(--pd-line-strong); color: var(--pd-ink); }
+.pd-pick input:checked + span { border-color: var(--pd-indigo); background: var(--pd-indigo-soft); color: var(--pd-indigo-dark); }
+.pd-pick input[type="checkbox"]:checked + span::before { border-color: var(--pd-indigo); background-color: var(--pd-indigo); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8.5l3 3 6-7' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+.pd-pick input[type="radio"]:checked + span::before { border-color: var(--pd-indigo); background: var(--pd-indigo); box-shadow: inset 0 0 0 3px #fff; }
+.pd-pick input:focus-visible + span { outline: 2px solid var(--pd-indigo); outline-offset: 2px; }
+.pd-pick input:disabled + span { opacity: .55; cursor: not-allowed; }
+.pd-pick small { font-weight: 400; color: var(--pd-text); }
+
+/* Form labels and the sticky save bar shared by every settings screen. */
+.pd-app .pd-label { display: block; font-weight: 600; color: var(--pd-ink); margin: 0 0 6px; }
+.pd-save { position: sticky; bottom: 0; z-index: 5; margin: 0 -2px; padding: 12px 2px; background: #f5f5f4; border-top: 1px solid var(--pd-line); }
+.pd-save .pd-muted { font-size: 13px; }
+html:has(.pd-save) { scroll-padding-bottom: 80px; }
+.pd-app fieldset.pd-fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.pd-app fieldset.pd-fieldset > legend { padding: 0; margin: 0 0 8px; font-weight: 600; color: var(--pd-ink); }
+
+/* ------------------------------------------------------------------ badges, notes, stats */
+.pd-badge { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; border-radius: 4px; padding: 1px 7px; font-size: 11px; font-weight: 600; line-height: 18px; background: var(--pd-soft); color: var(--pd-text); }
+.pd-badge--ok { background: var(--pd-ok-bg); color: var(--pd-ok); }
+.pd-badge--warn { background: var(--pd-warn-bg); color: var(--pd-warn); }
+.pd-badge--bad { background: var(--pd-bad-bg); color: var(--pd-bad); }
+.pd-badge--info { background: var(--pd-indigo-soft); color: var(--pd-indigo-dark); }
+.pd-badge--navy { background: var(--pd-navy); color: #fff; }
+.pd-count { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--pd-soft); color: var(--pd-text); font-size: 11px; font-weight: 700; }
+.pd-note { border: 1px solid var(--pd-line); border-radius: var(--pd-r-card); padding: 10px 12px; background: var(--pd-soft); color: var(--pd-text); margin: 0 0 14px; }
+.pd-note--ok { background: var(--pd-ok-bg); border-color: var(--pd-ok-line); color: var(--pd-ok); }
+.pd-note--warn { background: var(--pd-warn-bg); border-color: var(--pd-warn-line); color: var(--pd-warn); }
+.pd-note--bad { background: var(--pd-bad-bg); border-color: var(--pd-bad-line); color: var(--pd-bad); }
+.pd-note--info { background: var(--pd-indigo-soft); border-color: var(--pd-indigo-line); color: var(--pd-indigo-dark); }
+.pd-note strong { color: inherit; }
+.pd-stat { background: #fff; border: 1px solid var(--pd-line); border-radius: var(--pd-r-card); padding: 16px 18px; display: flex; flex-direction: column; gap: 2px; }
+.pd-stat__num { font-size: 28px; font-weight: 700; color: var(--pd-ink); font-variant-numeric: tabular-nums; line-height: 1.2; }
+.pd-stat__label { font-weight: 600; color: var(--pd-ink); }
+.pd-stat__sub { color: var(--pd-muted); font-size: 12px; }
+.pd-progress { height: 8px; background: var(--pd-soft); border-radius: 999px; overflow: hidden; }
+.pd-progress span { display: block; height: 100%; width: 0; background: var(--pd-grad); border-radius: 999px; transition: width .4s ease; }
+.pd-tick { display: inline-grid; place-items: center; flex: none; width: 18px; height: 18px; border-radius: 50%; background: var(--pd-ok); color: #fff; font-size: 11px; font-weight: 700; }
+.pd-tick--off { background: var(--pd-control); }
+.pd-tick--warn { background: var(--pd-warn); }
+.pd-tick--bad { background: var(--pd-bad); }
+.pd-checklist { list-style: none; margin: 0; display: grid; gap: 8px; }
+.pd-checklist li { display: flex; gap: 8px; align-items: center; margin: 0; }
+.pd-checklist li.is-off { color: var(--pd-muted); }
+
+/* ------------------------------------------------------------------ table */
+.pd-table-wrap { overflow-x: auto; }
+.pd-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.pd-table th { text-align: left; font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--pd-muted); padding: 8px 10px; border-bottom: 1px solid var(--pd-line); }
+.pd-table td { padding: 12px 10px; border-bottom: 1px solid var(--pd-soft); vertical-align: middle; }
+.pd-table tbody tr:hover td { background: #fafaf9; }
+.pd-table .num { text-align: right; }
+
+@media (prefers-reduced-motion: reduce) { .pd-app *, .pd-app *::before, .pd-app *::after { transition: none !important; animation: none !important; } }
+/* Windows high-contrast: draw states with borders, which forced colours keep. */
+@media (forced-colors: active) { .pd-switch span, .pd-pick span, .pd-badge, .pd-tick { border: 1px solid CanvasText; } .pd-switch input:checked + span { background: Highlight; } .pd-pick input:checked + span { outline: 2px solid Highlight; } }
+@media (hover: none) { .pd-pick span { min-height: 42px; } }
+@media (max-width: 600px) { .pd-brand { padding: 16px; } .pd-card { padding: 16px; } .pd-brand__side { justify-content: flex-start; } }

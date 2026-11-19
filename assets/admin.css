@@ -1,0 +1,16 @@
+/* Slipstream: page-specific additions to the Prasat UI kit. */
+.pd-app .pd-grid textarea { width: 100%; }
+
+/* Speed test */
+.ss-speed__nums { display: flex; align-items: flex-end; gap: 28px; flex-wrap: wrap; margin: 6px 0 14px; }
+.ss-speed__num strong { font-size: 40px; line-height: 1.05; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--pd-ink); display: inline; }
+.ss-speed__unit { font-size: 14px; font-weight: 600; color: var(--pd-muted); margin-left: 4px; }
+.ss-speed__num.is-fast strong { color: var(--pd-ok); }
+.ss-speed__num { display: flex; flex-direction: row; flex-wrap: wrap; align-items: baseline; }
+.ss-speed__label { flex-basis: 100%; font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--pd-muted); margin-bottom: 2px; }
+.ss-speed__factor { align-self: center; padding: 6px 12px; border-radius: var(--pd-r-control); background: var(--pd-navy); color: #fff; font-weight: 700; font-size: 14px; }
+.ss-speed__bar { height: 10px; border-radius: 999px; background: var(--pd-soft); overflow: hidden; margin-bottom: 16px; }
+.ss-speed__bar span { display: block; height: 100%; border-radius: 999px; background: var(--pd-grad); transition: width .6s ease; }
+.pd-stat .pd-progress { margin: 6px 0 2px; }
+.pd-stat__num small { font-size: 16px; font-weight: 600; }
+.ss-gap-top { margin-top: 16px; }
