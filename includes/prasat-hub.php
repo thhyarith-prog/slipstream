@@ -16,7 +16,7 @@ if ( ! class_exists( 'Prasat_Hub', false ) ) {
 	final class Prasat_Hub {
 
 		const SLUG    = 'prasat-digital';
-		const VERSION = '1.0.5';
+		const VERSION = '1.0.6';
 		const CAP     = 'manage_options';
 		const SITE    = 'https://www.prasatdigital.com';
 		const FOUNDER = 'Thyyarith';
@@ -36,6 +36,8 @@ if ( ! class_exists( 'Prasat_Hub', false ) ) {
 				add_action( 'admin_head', array( __CLASS__, 'menu_icon_style' ) );
 				add_filter( 'admin_footer_text', array( __CLASS__, 'footer_credit' ), 20 );
 				add_action( 'wp_ajax_prasat_site_check', array( __CLASS__, 'ajax_check' ) );
+				add_action( 'wp_ajax_prasat_ai_optimize', array( __CLASS__, 'ajax_ai_optimize' ) );
+				add_action( 'wp_ajax_prasat_ai_key', array( __CLASS__, 'ajax_ai_key' ) );
 			}
 		}
 
@@ -228,6 +230,7 @@ if ( ! class_exists( 'Prasat_Hub', false ) ) {
 				'grade'   => $result['grade'],
 				'wp'      => $wp_version,
 				'php'     => PHP_VERSION,
+				'locale'  => get_locale(),
 				'items'   => array_map(
 					function ( $i ) {
 						return array_intersect_key( $i, array_flip( array( 'plugin', 'id', 'status', 'severity', 'title' ) ) );
@@ -235,6 +238,100 @@ if ( ! class_exists( 'Prasat_Hub', false ) ) {
 					$result['items']
 				),
 			);
+		}
+
+		/* ================================================= Smart AI Optimize */
+
+		const AI_KEY_OPTION  = 'prasat_premium_key';
+		const AI_PLAN_OPTION = 'prasat_ai_plan';
+		const AI_RELAY       = 'https://prasat-ai-relay.riththon.workers.dev';
+
+		/** Relay address; a site can point elsewhere with define( 'PRASAT_AI_RELAY', '...' ) for testing. */
+		private static function ai_relay() {
+			return untrailingslashit( defined( 'PRASAT_AI_RELAY' ) ? PRASAT_AI_RELAY : self::AI_RELAY );
+		}
+
+		private static function ai_ready() {
+			$ai = apply_filters( 'prasat_site_check_ai', array( 'available' => false ) );
+			return '' !== (string) get_option( self::AI_KEY_OPTION, '' ) || ! empty( $ai['available'] );
+		}
+
+		/** Saves or removes the Premium key (kept server-side, never printed back to the page). */
+		public static function ajax_ai_key() {
+			check_ajax_referer( 'prasat_site_check', 'nonce' );
+			if ( ! current_user_can( self::CAP ) ) {
+				wp_send_json_error( null, 403 );
+			}
+			$key = isset( $_POST['key'] ) ? trim( sanitize_text_field( wp_unslash( $_POST['key'] ) ) ) : '';
+			if ( '' === $key ) {
+				delete_option( self::AI_KEY_OPTION );
+				delete_option( self::AI_PLAN_OPTION );
+				wp_send_json_success( array( 'hasKey' => false ) );
+			}
+			if ( ! preg_match( '/^[A-Za-z0-9._~-]{16,200}$/', $key ) ) {
+				wp_send_json_error( array( 'code' => 'bad_key_format' ), 400 );
+			}
+			update_option( self::AI_KEY_OPTION, $key, false );
+			wp_send_json_success( array( 'hasKey' => true ) );
+		}
+
+		/** Runs a fresh check, sends the safe summary of it to the Prasat relay, stores the plan. */
+		public static function ajax_ai_optimize() {
+			check_ajax_referer( 'prasat_site_check', 'nonce' );
+			if ( ! current_user_can( self::CAP ) ) {
+				wp_send_json_error( null, 403 );
+			}
+			$key = (string) get_option( self::AI_KEY_OPTION, '' );
+			if ( '' === $key ) {
+				wp_send_json_error( array( 'code' => 'no_key' ), 400 );
+			}
+			if ( function_exists( 'set_time_limit' ) ) {
+				@set_time_limit( 180 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
+			}
+			$check = self::run_check();
+			$res   = wp_remote_post(
+				self::ai_relay() . '/v1/optimize',
+				array(
+					'timeout' => 150,
+					'headers' => array(
+						'Authorization' => 'Bearer ' . $key,
+						'Content-Type'  => 'application/json',
+					),
+					'body'    => wp_json_encode( self::ai_payload( $check ) ),
+				)
+			);
+			if ( is_wp_error( $res ) ) {
+				wp_send_json_error( array( 'code' => 'unreachable', 'check' => $check ), 502 );
+			}
+			$code = (int) wp_remote_retrieve_response_code( $res );
+			$body = json_decode( wp_remote_retrieve_body( $res ), true );
+			if ( 200 !== $code || ! is_array( $body ) || ! isset( $body['summary'] ) ) {
+				$err = is_array( $body ) && ! empty( $body['error'] ) ? sanitize_key( $body['error'] ) : 'ai_unavailable';
+				wp_send_json_error( array( 'code' => $err, 'check' => $check ), 502 );
+			}
+			$steps = array();
+			foreach ( array_slice( isset( $body['steps'] ) && is_array( $body['steps'] ) ? $body['steps'] : array(), 0, 8 ) as $st ) {
+				if ( ! is_array( $st ) ) {
+					continue;
+				}
+				$steps[] = array(
+					'item_id' => isset( $st['item_id'] ) ? sanitize_text_field( $st['item_id'] ) : '',
+					'title'   => isset( $st['title'] ) ? sanitize_text_field( $st['title'] ) : '',
+					'why'     => isset( $st['why'] ) ? sanitize_text_field( $st['why'] ) : '',
+					'how'     => isset( $st['how'] ) ? sanitize_text_field( $st['how'] ) : '',
+					'effort'  => isset( $st['effort'] ) && in_array( $st['effort'], array( 'quick', 'medium', 'involved' ), true ) ? $st['effort'] : 'medium',
+					'risk'    => isset( $st['risk'] ) && in_array( $st['risk'], array( 'safe', 'backup-first', 'expert' ), true ) ? $st['risk'] : 'backup-first',
+				);
+			}
+			$plan = array(
+				'time'    => time(),
+				'score'   => $check['score'],
+				'summary' => sanitize_textarea_field( $body['summary'] ),
+				'steps'   => $steps,
+				'model'   => isset( $body['model'] ) ? sanitize_text_field( $body['model'] ) : '',
+			);
+			update_option( self::AI_PLAN_OPTION, $plan, false );
+			wp_send_json_success( array( 'plan' => $plan, 'check' => $check ) );
 		}
 
 		/** URL of a family icon (prasat, bastion, lifeboat, slipstream, compass, featherweight). */
@@ -387,7 +484,6 @@ if ( ! class_exists( 'Prasat_Hub', false ) ) {
 			if ( self::on_page() && self::assets_url() ) {
 				wp_enqueue_style( 'prasat-hub-ui', self::assets_url() . 'prasat-ui.css', array(), self::VERSION );
 				wp_enqueue_script( 'prasat-hub-ui', self::assets_url() . 'prasat-ui.js', array(), self::VERSION, true );
-				$ai = apply_filters( 'prasat_site_check_ai', array( 'available' => false ) );
 				wp_add_inline_script(
 					'prasat-hub-ui',
 					'window.PrasatCheck=' . wp_json_encode(
@@ -395,7 +491,8 @@ if ( ! class_exists( 'Prasat_Hub', false ) ) {
 							'ajax'  => admin_url( 'admin-ajax.php' ),
 							'nonce' => wp_create_nonce( 'prasat_site_check' ),
 							'last'  => get_option( self::CHECK_OPTION ) ?: null,
-							'ai'    => ! empty( $ai['available'] ),
+							'ai'    => self::ai_ready(),
+							'plan'  => get_option( self::AI_PLAN_OPTION ) ?: null,
 							'names' => array_merge( wp_list_pluck( self::catalog(), 'name' ), array( 'wordpress' => 'WordPress' ) ),
 						)
 					) . ';',
@@ -474,6 +571,13 @@ if ( ! class_exists( 'Prasat_Hub', false ) ) {
 				. '.pd-mini{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}.pd-mini__item{display:grid;gap:8px;background:#fff;border:1px solid var(--pd-line);border-radius:12px;padding:14px 16px}.pd-mini__top{display:flex;align-items:center;gap:10px}.pd-mini__top img{width:34px;height:34px;border-radius:9px;flex:none}.pd-mini__top img.is-off{filter:grayscale(1);opacity:.55}'
 				. '.pd-mini__name{display:block;font-weight:700;color:var(--pd-ink)}.pd-mini__ver{display:block;font-size:12px;color:var(--pd-muted)}.pd-mini__foot{display:flex;align-items:center;justify-content:space-between;gap:8px}'
 				. '@media (max-width:1100px){.pd-dash__row,.pd-dash__row--wide,.pd-dash__row--2{grid-template-columns:minmax(0,1fr)}}@media (max-width:600px){.pd-health{flex-direction:column;text-align:center}.pd-app .pd-health h2{text-align:center;margin-left:0}.pd-sev{justify-content:center}.pd-check__row{grid-template-columns:20px minmax(0,1fr)}.pd-check__row .button{grid-column:2;justify-self:start}}'
+				. '.pd-ai-btn[aria-busy=true]{cursor:progress;filter:saturate(.75)}.pd-ai__note p,.pd-ai__keyline,.pd-ai__msg{margin:0;font-size:13px;color:#E0E7FF}.pd-ai__note a{color:#fff}.pd-ai__msg:empty,.pd-ai__keyline[hidden],.pd-ai__note[hidden]{display:none}'
+				. '.pd-ai__key{display:grid;gap:6px;margin-top:8px}.pd-ai__key label{font-size:12px;font-weight:600;color:#fff}.pd-ai__key span{display:flex;gap:8px}.pd-ai__key input{flex:1;min-width:0;border-radius:8px;border:1px solid #64748B;padding:6px 10px}.pd-ai__remove{background:none;border:0;padding:0;color:#fff;text-decoration:underline;cursor:pointer;font:inherit}'
+				. '.pd-plan__meta{font-size:12px}.pd-plan__summary{font-size:15px;line-height:1.55;color:var(--pd-ink);margin:0 0 6px}.pd-plan__summary:empty{display:none}.pd-plan__busy:empty{display:none}.pd-plan__busy .pd-loader{margin:10px 0}'
+				. '.pd-plan__steps{margin:0;list-style:none;counter-reset:pd-step}.pd-plan__steps li{counter-increment:pd-step;display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:12px;align-items:start;padding:12px 0;border-top:1px solid #F1F0EE;margin:0}'
+				. '.pd-plan__steps li::before{content:counter(pd-step);width:26px;height:26px;border-radius:50%;background:var(--pd-navy);color:#fff;display:grid;place-items:center;font-size:12px;font-weight:700}'
+				. '.pd-plan__title{display:block;font-weight:700;color:var(--pd-ink)}.pd-plan__why,.pd-plan__how{display:block;font-size:13px;margin-top:3px;color:var(--pd-text)}.pd-plan__why{color:var(--pd-muted)}.pd-plan__tags{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}'
+				. '@media (max-width:600px){.pd-plan__steps li{grid-template-columns:28px minmax(0,1fr)}.pd-plan__steps li .button{grid-column:2;justify-self:start}}'
 				. '@media (prefers-reduced-motion:reduce){.pd-ai-btn{transition:none}}';
 		}
 
@@ -482,8 +586,6 @@ if ( ! class_exists( 'Prasat_Hub', false ) ) {
 			return <<<'JS'
 (function(){var C=window.PrasatCheck,card=document.getElementById('pd-site-check');
 document.querySelectorAll('.pd-job[data-pct]').forEach(function(j){if(!window.PrasatUI)return;var l=PrasatUI.loader('fill',{label:j.getAttribute('data-title')});l.set(+j.getAttribute('data-pct'),j.getAttribute('data-text'));j.insertBefore(l.el,j.querySelector('.pd-job__bar'));});
-var ai=document.querySelector('.pd-ai-btn'),note=document.querySelector('.pd-ai__note');
-if(ai)ai.addEventListener('click',function(){if(C&&C.ai){document.dispatchEvent(new CustomEvent('prasat:ai-optimize',{detail:C.last||null}));return;}if(note){note.hidden=false;note.focus&&note.focus();}});
 if(!C||!card)return;
 var run=card.querySelector('.pd-check__run'),status=card.querySelector('.pd-check__status'),ring=card.querySelector('.pd-check__ring'),sev=card.querySelector('.pd-sev');
 var fix=document.getElementById('pd-fix'),list=fix?fix.querySelector('.pd-fix__list'):null,more=fix?fix.querySelector('.pd-fix__more'):null,out=fix?fix.querySelector('.pd-check__results'):null,count=fix?fix.querySelector('.pd-fix__count'):null;
@@ -516,6 +618,24 @@ var L=window.PrasatUI?PrasatUI.loader('build',{size:'lg'}):null;if(L){ring.hidde
 var b=new FormData();b.append('action','prasat_site_check');b.append('nonce',C.nonce);
 fetch(C.ajax,{method:'POST',credentials:'same-origin',body:b}).then(function(r){return r.json();}).then(function(j){if(!j||!j.success)throw 0;C.last=j.data;show(j.data);}).catch(function(){status.textContent='The check could not finish. Please reload and try again.';}).then(function(){if(L){L.el.remove();ring.hidden=false;}run.removeAttribute('aria-busy');});});
 if(C.last)show(C.last);
+var ai=document.querySelector('.pd-ai-btn'),note=document.getElementById('pd-ai-note'),msg=document.querySelector('.pd-ai__msg'),keyline=document.querySelector('.pd-ai__keyline'),kf=document.querySelector('.pd-ai__key'),plan=document.getElementById('pd-ai-plan');
+var ERR={no_key:'Add your Premium key first.',invalid_premium_key:'That Premium key was not accepted. Check it and save it again.',bad_key_format:'That does not look like a Premium key.',busy:'Smart AI Optimize is busy right now. Please try again in a minute.',relay_not_configured:'Smart AI Optimize is not switched on yet.',relay_key_invalid:'Smart AI Optimize is not switched on yet.',refused:'The AI could not make a plan for this report.',unreachable:'Could not reach Smart AI Optimize. Please try again shortly.'};
+var EFF={quick:'Under 5 min',medium:'Under 30 min',involved:'Takes longer'},RISK={safe:['Safe','pd-badge--ok'],'backup-first':['Back up first','pd-badge--warn'],expert:['Ask a developer','pd-badge--bad']};
+function post(a,extra){var b=new FormData();b.append('action',a);b.append('nonce',C.nonce);for(var k in extra)b.append(k,extra[k]);return fetch(C.ajax,{method:'POST',credentials:'same-origin',body:b}).then(function(r){return r.json().catch(function(){return {success:false,data:{code:'unreachable'}};});});}
+function say(t){if(msg)msg.textContent=t||'';}
+function findItem(id){var it=null;(C.last&&C.last.items||[]).forEach(function(i){if(i.id===id)it=i;});return it;}
+function renderPlan(p){if(!plan||!p)return;plan.hidden=false;plan.querySelector('.pd-plan__busy').textContent='';plan.querySelector('.pd-plan__summary').textContent=p.summary||'';plan.querySelector('.pd-plan__meta').textContent='Made '+ago(p.time)+(p.model?' · by Claude':'');
+var ol=plan.querySelector('.pd-plan__steps');ol.textContent='';(p.steps||[]).forEach(function(st){var li=el('li'),b=el('div');b.appendChild(el('span','pd-plan__title',st.title));if(st.why)b.appendChild(el('span','pd-plan__why',st.why));if(st.how)b.appendChild(el('span','pd-plan__how',st.how));
+var tags=el('span','pd-plan__tags');tags.appendChild(el('span','pd-badge',EFF[st.effort]||''));var r=RISK[st.risk]||RISK['backup-first'];tags.appendChild(el('span','pd-badge '+r[1],r[0]));b.appendChild(tags);li.appendChild(b);
+var it=findItem(st.item_id);if(it&&it.fix_url){var a=el('a','button',it.fix_label||'Open');a.href=it.fix_url;if(a.host!==location.host){a.target='_blank';a.rel='noopener';}li.appendChild(a);}ol.appendChild(li);});}
+function optimize(){if(ai.getAttribute('aria-busy')==='true')return;ai.setAttribute('aria-busy','true');say('');plan.hidden=false;plan.querySelector('.pd-plan__summary').textContent='';plan.querySelector('.pd-plan__steps').textContent='';plan.querySelector('.pd-plan__meta').textContent='';
+var busy=plan.querySelector('.pd-plan__busy');busy.textContent='';if(window.PrasatUI){var L=PrasatUI.loader('glow',{text:'Checking your website, then Claude writes your plan…'});busy.appendChild(L.el);}else busy.textContent='Working…';
+plan.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'nearest'});
+post('prasat_ai_optimize',{}).then(function(j){var d=j&&j.data||{};if(d.check){C.last=d.check;show(d.check);}if(j&&j.success){C.plan=d.plan;renderPlan(d.plan);say('Plan ready.');}else{busy.textContent='';if(C.plan)renderPlan(C.plan);else plan.hidden=true;say(ERR[d.code]||'Smart AI Optimize could not finish. Please try again.');if(d.code==='invalid_premium_key'||d.code==='no_key'){note.hidden=false;}}}).then(function(){ai.removeAttribute('aria-busy');});}
+if(ai)ai.addEventListener('click',function(){if(C.ai){optimize();return;}note.hidden=false;var inp=document.getElementById('pd-ai-key');if(inp)inp.focus();});
+if(kf)kf.addEventListener('submit',function(e){e.preventDefault();var inp=document.getElementById('pd-ai-key'),btn=kf.querySelector('button');btn.setAttribute('aria-busy','true');post('prasat_ai_key',{key:inp.value}).then(function(j){if(j&&j.success){C.ai=true;inp.value='';note.hidden=true;keyline.hidden=false;say('Key saved. Click "Optimize with AI".');ai.focus();}else{say(ERR[j&&j.data&&j.data.code]||'Could not save the key.');}}).then(function(){btn.removeAttribute('aria-busy');});});
+var rm=document.querySelector('.pd-ai__remove');if(rm)rm.addEventListener('click',function(){post('prasat_ai_key',{key:''}).then(function(j){if(j&&j.success){C.ai=false;C.plan=null;keyline.hidden=true;if(plan)plan.hidden=true;say('Premium key removed.');}});});
+if(C.plan)renderPlan(C.plan);
 })();
 JS;
 		}
@@ -583,9 +703,24 @@ JS;
 								<svg width="26" height="22" viewBox="0 0 26 22" aria-hidden="true"><path d="M14 4c.7 5.4 2.7 7.4 8 8-5.3.6-7.3 2.6-8 8-.7-5.4-2.7-7.4-8-8 5.3-.6 7.3-2.6 8-8z" fill="#fff"/><path d="M5 1c.3 2.2 1 2.9 3.2 3.2C6 4.5 5.3 5.2 5 7.4 4.7 5.2 4 4.5 1.8 4.2 4 3.9 4.7 3.2 5 1z" fill="#fff"/><path d="M22.5 2c.2 1.4.7 1.9 2.1 2.1-1.4.2-1.9.7-2.1 2.1-.2-1.4-.7-1.9-2.1-2.1 1.4-.2 1.9-.7 2.1-2.1z" fill="#fff"/></svg>
 								Optimize with AI
 							</button>
-							<p class="pd-ai__note" id="pd-ai-note" tabindex="-1" hidden>Smart AI Optimize is part of Prasat Premium and is coming soon. <a href="<?php echo esc_url( self::SITE ); ?>" target="_blank" rel="noopener" style="color:#fff">Get notified</a></p>
+							<div class="pd-ai__note" id="pd-ai-note" tabindex="-1" hidden>
+								<p>Smart AI Optimize is part of Prasat Premium. Add your Premium key to turn it on. <a href="<?php echo esc_url( self::SITE ); ?>" target="_blank" rel="noopener">Get Premium</a></p>
+								<form class="pd-ai__key">
+									<label for="pd-ai-key">Premium key</label>
+									<span><input type="password" id="pd-ai-key" autocomplete="off" spellcheck="false" required minlength="16"><button type="submit" class="button">Save key</button></span>
+								</form>
+							</div>
+							<p class="pd-ai__keyline"<?php echo '' === (string) get_option( self::AI_KEY_OPTION, '' ) ? ' hidden' : ''; ?>>Premium key added · <button type="button" class="pd-ai__remove">Remove</button></p>
+							<p class="pd-ai__msg" role="status" aria-live="polite"></p>
 						</section>
 					</div>
+
+					<section class="pd-card pd-plan" id="pd-ai-plan" aria-labelledby="pd-plan-t" hidden>
+						<div class="pd-card__head"><h2 id="pd-plan-t">Your Smart AI plan</h2><span class="pd-plan__meta"></span></div>
+						<div class="pd-plan__busy"></div>
+						<p class="pd-plan__summary"></p>
+						<ol class="pd-plan__steps"></ol>
+					</section>
 
 					<div class="pd-tiles">
 						<?php foreach ( $dash['tiles'] as $t ) : ?>

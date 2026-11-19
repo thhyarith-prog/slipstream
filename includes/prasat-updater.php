@@ -21,7 +21,7 @@ if ( ! class_exists( 'Prasat_Updater', false ) ) {
 
 	final class Prasat_Updater {
 
-		const VERSION = '1.0.0';
+		const VERSION = '1.0.1';
 		const CACHE   = 6 * HOUR_IN_SECONDS;
 
 		/** @var array plugin_basename => [ repo, slug ] */
@@ -45,9 +45,17 @@ if ( ! class_exists( 'Prasat_Updater', false ) ) {
 			}
 		}
 
+		/** True when an admin clicked "Check again" on Dashboard > Updates: skip the cache once. */
+		private static function forced() {
+			return is_admin() && ! empty( $_GET['force-check'] ) && current_user_can( 'update_plugins' ); // phpcs:ignore WordPress.Security.NonceVerification
+		}
+
 		/** The latest release of a repository, cached. Null when GitHub can't be reached. */
 		public static function release( $repo, $force = false ) {
+			static $fresh = array(); // a forced lookup hits GitHub once per repository per request
 			$key    = 'prasat_rel_' . md5( $repo );
+			$force  = $force && ! isset( $fresh[ $repo ] );
+			$fresh[ $repo ] = true;
 			$cached = $force ? false : get_site_transient( $key );
 			if ( is_array( $cached ) ) {
 				return $cached['ok'] ? $cached : null;
@@ -97,7 +105,7 @@ if ( ! class_exists( 'Prasat_Updater', false ) ) {
 				return $update;
 			}
 			$p   = self::$plugins[ $plugin_file ];
-			$rel = self::release( $p['repo'] );
+			$rel = self::release( $p['repo'], self::forced() );
 			if ( ! $rel || '' === $rel['package'] ) {
 				return $update;
 			}
