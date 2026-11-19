@@ -117,9 +117,8 @@ html[lang^="km"] .pd-app { line-height: 1.6; }
 .pd-app .button-primary:hover { background: var(--pd-indigo-dark); border-color: var(--pd-indigo-dark); color: #fff; }
 .pd-app .button-primary:focus { background: var(--pd-indigo); border-color: var(--pd-indigo); color: #fff; }
 .pd-app .button[disabled], .pd-app .button-primary[disabled], .pd-app .button[aria-disabled="true"] { background: var(--pd-soft) !important; border-color: var(--pd-line) !important; color: var(--pd-muted) !important; cursor: not-allowed; transform: none; }
-/* Busy: the button keeps its colour and shows a small spinner. */
-.pd-app .button[aria-busy="true"] { pointer-events: none; opacity: .85; }
-.pd-app .button[aria-busy="true"]::before { content: ''; width: 12px; height: 12px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: pd-spin .7s linear infinite; }
+/* Busy: the button keeps its colour and shows the glowing Prasat temple (drawn by prasat-ui.js). */
+.pd-app .button[aria-busy="true"] { pointer-events: none; opacity: .9; }
 @keyframes pd-spin { to { transform: rotate(360deg); } }
 /* WordPress "link" buttons stay links inside the kit. */
 .pd-app .button.button-link, .pd-app .button-link { min-height: 0; padding: 0; border: 0; background: none; color: var(--pd-indigo); text-decoration: underline; text-underline-offset: 2px; }

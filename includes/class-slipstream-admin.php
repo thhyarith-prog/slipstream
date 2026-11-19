@@ -361,4 +361,22 @@ class Slipstream_Admin {
 		$out[]     = array( 'id' => 'db_clutter', 'status' => $clutter > 2000 ? 'warn' : 'pass', 'severity' => 'low', 'title' => __( 'The database is tidy', 'slipstream' ), 'detail' => $clutter > 2000 ? sprintf( __( '%s old revisions and deleted or spam comments slow the database down.', 'slipstream' ), number_format_i18n( $clutter ) ) : '', 'fix_url' => $page . '&tab=database', 'fix_label' => __( 'Clean up', 'slipstream' ) );
 		return $out;
 	}
+
+	/** Numbers for the Prasat Digital dashboard (Prasat_Hub::render). */
+	public static function dashboard() {
+		$on = (bool) Slipstream_Settings::get( 'cache' );
+		list( $pages ) = Slipstream_Cache::stats();
+		return array(
+			'tiles' => array(
+				array(
+					'area'  => __( 'Speed', 'slipstream' ),
+					'value' => $on ? number_format_i18n( $pages ) : __( 'Off', 'slipstream' ),
+					'label' => $on ? __( 'pages cached', 'slipstream' ) : __( 'page cache', 'slipstream' ),
+					'sub'   => $on ? ( Slipstream_Cache::dropin_active() ? __( 'Cache on · fast mode', 'slipstream' ) : __( 'Cache on · standard mode', 'slipstream' ) ) : __( 'Pages are built on every visit', 'slipstream' ),
+					'tone'  => $on ? ( Slipstream_Cache::dropin_active() ? 'ok' : 'warn' ) : 'bad',
+					'url'   => admin_url( 'admin.php?page=slipstream' ),
+				),
+			),
+		);
+	}
 }

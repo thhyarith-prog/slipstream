@@ -16,7 +16,7 @@ if ( ! class_exists( 'Prasat_Hub', false ) ) {
 	final class Prasat_Hub {
 
 		const SLUG    = 'prasat-digital';
-		const VERSION = '1.0.3';
+		const VERSION = '1.0.5';
 		const CAP     = 'manage_options';
 		const SITE    = 'https://www.prasatdigital.com';
 		const FOUNDER = 'Thyyarith';
@@ -406,47 +406,116 @@ if ( ! class_exists( 'Prasat_Hub', false ) ) {
 			}
 		}
 
-		private static function check_css() {
-			return '.pd-check{margin-bottom:16px}.pd-check__hero{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(200px,260px);gap:24px;align-items:center}'
-				. '.pd-check__ring{--p:0;--c:var(--pd-muted);width:112px;height:112px;border-radius:50%;background:conic-gradient(var(--c) calc(var(--p)*1%),var(--pd-soft) 0);display:grid;place-items:center;align-content:center;position:relative}'
-				. '.pd-check__ring::before{content:"";position:absolute;inset:10px;border-radius:50%;background:#fff}.pd-check__ring>span{position:relative}'
-				. '.pd-check__grade{font-size:34px;font-weight:700;line-height:1;color:var(--pd-ink)}.pd-check__num{font-size:12px;color:var(--pd-muted)}'
-				. '.pd-check--good .pd-check__ring{--c:var(--pd-ok)}.pd-check--warn .pd-check__ring{--c:var(--pd-warn)}.pd-check--bad .pd-check__ring{--c:var(--pd-bad)}'
-				. '.pd-app .pd-check h2{margin:0 0 4px}.pd-check__lead{margin:0 0 12px}.pd-check__status{color:var(--pd-muted)}'
-				. '.pd-check__ai{border:1px dashed var(--pd-line-strong);border-radius:10px;padding:14px;display:grid;gap:6px;align-content:start}.pd-check__ai p{margin:0;font-size:12px;color:var(--pd-muted)}.pd-check__ai .pd-badge{justify-self:start}'
-				. '.pd-check__results{margin-top:20px;border-top:1px solid var(--pd-line);padding-top:16px}.pd-check__group{margin:0 0 14px}.pd-check__group h3{margin:0 0 6px;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--pd-muted)}'
-				. '.pd-check__list{margin:0;list-style:none}.pd-check__row{display:grid;grid-template-columns:20px minmax(0,1fr) auto;gap:10px;align-items:start;padding:10px 0;border-bottom:1px solid var(--pd-line);margin:0}.pd-check__row:last-child{border-bottom:0}'
-				. '.pd-check__row .pd-tick{margin-top:2px}.pd-check__row .pd-tick--bad{background:var(--pd-bad)}.pd-check__row .pd-tick--warn{background:var(--pd-warn)}.pd-check__row .pd-tick--info{background:var(--pd-indigo)}'
-				. '.pd-check__title{font-weight:600;color:var(--pd-ink)}.pd-check__detail{display:block;color:var(--pd-text);font-size:13px}.pd-check__meta{display:flex;gap:6px;margin-top:4px;flex-wrap:wrap}'
-				. '.pd-check__passed summary{cursor:pointer;color:var(--pd-muted);font-weight:600;padding:6px 0}.pd-check__good{color:var(--pd-ok);font-weight:600}'
-				. '@media (max-width:960px){.pd-check__hero{grid-template-columns:auto minmax(0,1fr)}.pd-check__ai{grid-column:1/-1}}@media (max-width:600px){.pd-check__hero{grid-template-columns:minmax(0,1fr);justify-items:center;text-align:center}.pd-check__row{grid-template-columns:20px minmax(0,1fr)}.pd-check__row .button{grid-column:2;justify-self:start}}';
+		/** Everything the dashboard shows, gathered from each active Prasat plugin's dashboard(). */
+		private static function collect_dashboard() {
+			$out = array( 'tiles' => array(), 'activity' => array(), 'charts' => array(), 'jobs' => array() );
+			$areas = array( 'bastion' => 'Security', 'lifeboat' => 'Backups', 'slipstream' => 'Speed', 'compass' => 'Search', 'featherweight' => 'Images' );
+			foreach ( self::catalog() as $id => $p ) {
+				$cb   = isset( self::$registered[ $id ]['dashboard'] ) ? self::$registered[ $id ]['dashboard'] : null;
+				$data = null;
+				if ( $cb && is_callable( $cb ) && is_plugin_active( $p['file'] ) ) {
+					try {
+						$data = (array) call_user_func( $cb );
+					} catch ( Throwable $e ) {
+						$data = null;
+					}
+				}
+				if ( ! $data ) {
+					$out['tiles'][] = array( 'area' => $areas[ $id ], 'value' => '—', 'label' => $p['name'], 'sub' => is_plugin_active( $p['file'] ) ? 'Update to see its numbers here' : 'Not installed on this site', 'tone' => 'muted', 'url' => is_plugin_active( $p['file'] ) ? admin_url( 'admin.php?page=' . $p['page'] ) : self::SITE );
+					continue;
+				}
+				foreach ( array( 'tiles', 'activity', 'charts', 'jobs' ) as $k ) {
+					foreach ( isset( $data[ $k ] ) ? (array) $data[ $k ] : array() as $row ) {
+						if ( is_array( $row ) ) {
+							$row['plugin'] = $id;
+							$out[ $k ][]   = $row;
+						}
+					}
+				}
+			}
+			usort(
+				$out['activity'],
+				function ( $a, $b ) {
+					return ( isset( $b['time'] ) ? $b['time'] : 0 ) <=> ( isset( $a['time'] ) ? $a['time'] : 0 );
+				}
+			);
+			$out['activity'] = array_slice( $out['activity'], 0, 6 );
+			return $out;
 		}
 
-		/** The card's behaviour; builds every node with textContent, so findings can't inject markup. */
+		private static function check_css() {
+			return '.pd-dash{display:grid;gap:16px;margin-bottom:16px}.pd-dash__row{display:grid;gap:16px;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr)}'
+				. '.pd-dash__row--wide{grid-template-columns:minmax(0,1.35fr) minmax(0,1fr)}.pd-dash__row--2{grid-template-columns:repeat(2,minmax(0,1fr))}.pd-dash__col{display:grid;gap:16px;align-content:start}'
+				. '.pd-app .pd-dash .pd-card{margin:0}.pd-dash h2{margin:0}'
+				. '.pd-health{display:flex;align-items:center;gap:24px}.pd-health__body{flex:1;display:grid;gap:10px}'
+				. '.pd-check__ring{--p:0;--c:var(--pd-muted);flex:none;width:124px;height:124px;border-radius:50%;background:conic-gradient(var(--c) calc(var(--p)*1%),#F1F0EE 0);display:grid;place-items:center;align-content:center;position:relative}'
+				. '.pd-check__ring[hidden]{display:none}.pd-health>.pd-loader{margin:0;justify-content:center;width:124px}.pd-check__ring::before{content:"";position:absolute;inset:11px;border-radius:50%;background:#fff}.pd-check__ring>span{position:relative}'
+				. '.pd-check__grade{font-size:38px;font-weight:700;line-height:1;color:var(--pd-ink)}.pd-check__num{font-size:12px;color:var(--pd-muted)}'
+				. '.pd-check--good .pd-check__ring{--c:var(--pd-ok)}.pd-check--warn .pd-check__ring{--c:var(--pd-warn)}.pd-check--bad .pd-check__ring{--c:var(--pd-bad)}'
+				. '.pd-check__status{color:var(--pd-muted);margin:0}.pd-sev{display:flex;gap:8px;flex-wrap:wrap}.pd-sev span{font-size:12px;font-weight:600;padding:4px 10px;border-radius:6px}'
+				. '.pd-sev .s-critical{background:var(--pd-bad-bg);color:var(--pd-bad)}.pd-sev .s-high{background:var(--pd-warn-bg);color:var(--pd-warn)}.pd-sev .s-medium{background:var(--pd-indigo-soft);color:var(--pd-indigo-dark)}.pd-sev .s-low{background:var(--pd-soft);color:var(--pd-text)}.pd-sev .s-pass{background:var(--pd-ok-bg);color:var(--pd-ok)}'
+				. '.pd-ai{background:var(--pd-navy);color:#fff;border-radius:14px;padding:22px;display:flex;flex-direction:column;gap:10px}.pd-ai h2{color:#fff;font-size:18px}.pd-ai__head{display:flex;align-items:center;justify-content:space-between;gap:8px}'
+				. '.pd-ai__tag{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 9px;border-radius:6px;background:#fff;color:var(--pd-navy)}.pd-ai p{margin:0;color:#CBD5E1;line-height:1.5}.pd-ai__nums{display:flex;gap:18px}.pd-ai__nums b{display:block;font-size:26px}.pd-ai__nums span{font-size:12px;color:#CBD5E1}'
+				. '.pd-ai-btn{margin-top:4px;min-height:54px;padding:0 28px;border:0;border-radius:999px;background:linear-gradient(90deg,#38A8E8 0%,#2B3FE0 32%,#8A2BE2 66%,#E0337A 100%);color:#fff;font-size:17px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;gap:12px;cursor:pointer;box-shadow:0 16px 28px -14px rgba(138,43,226,.75),0 12px 24px -14px rgba(224,51,122,.6),0 12px 24px -14px rgba(43,63,224,.6);transition:transform .15s ease,filter .15s ease}'
+				. '.pd-ai-btn:hover{filter:brightness(1.08);transform:translateY(-1px)}.pd-ai-btn:active{transform:scale(.98)}.pd-ai-btn:focus-visible{outline:3px solid #fff;outline-offset:3px}.pd-ai-btn svg{flex:none}.pd-ai__note{font-size:13px;color:#E0E7FF}.pd-ai__note[hidden]{display:none}'
+				. '.pd-tiles{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}.pd-tile{display:grid;gap:5px;align-content:start;background:#fff;border:1px solid var(--pd-line);border-radius:12px;padding:14px 16px;color:var(--pd-ink);text-decoration:none}'
+				. 'a.pd-tile:hover{border-color:var(--pd-line-strong)}a.pd-tile:focus-visible{outline:2px solid var(--pd-indigo);outline-offset:2px}.pd-tile__area{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--pd-muted)}'
+				. '.pd-tile__dot{width:8px;height:8px;border-radius:50%;background:var(--pd-line-strong)}.t-ok .pd-tile__dot{background:var(--pd-ok)}.t-warn .pd-tile__dot{background:var(--pd-warn)}.t-bad .pd-tile__dot{background:var(--pd-bad)}'
+				. '.pd-tile__value{font-size:24px;font-weight:700;letter-spacing:-.01em}.t-muted .pd-tile__value{color:var(--pd-muted)}.pd-app a.pd-tile,.pd-app a.pd-tile:hover{color:var(--pd-ink)}.pd-tile__label{font-size:12px;font-weight:600}.pd-tile__sub{font-size:12px;color:var(--pd-muted);line-height:1.4}'
+				. '.pd-card__head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:8px}.pd-card__head h2{font-size:16px}.pd-card__head span{font-size:13px;color:var(--pd-muted)}'
+				. '.pd-fix__list,.pd-feed{margin:0;list-style:none}.pd-check__row{display:grid;grid-template-columns:20px minmax(0,1fr) auto;gap:12px;align-items:start;padding:11px 0;border-top:1px solid #F1F0EE;margin:0}'
+				. '.pd-check__row .pd-tick{margin-top:2px}.pd-check__row .pd-tick--bad{background:var(--pd-bad)}.pd-check__row .pd-tick--warn{background:var(--pd-warn)}.pd-check__row .pd-tick--info{background:var(--pd-indigo)}'
+				. '.pd-check__title{display:block;font-weight:600;color:var(--pd-ink)}.pd-check__detail{display:block;color:var(--pd-muted);font-size:12px;margin-top:2px}.pd-check__meta{display:flex;gap:6px;margin-top:4px;flex-wrap:wrap}'
+				. '.pd-fix__more{margin-top:8px}.pd-check__results{margin-top:8px}.pd-check__results[hidden]{display:none}.pd-check__group h3{margin:14px 0 2px;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--pd-muted)}.pd-check__passed summary{cursor:pointer;color:var(--pd-muted);font-weight:600;padding:8px 0}.pd-check__good{color:var(--pd-ok);font-weight:600;margin:6px 0}'
+				. '.pd-job{display:grid;gap:8px}.pd-job .pd-loader{margin:0}.pd-feed li{display:grid;grid-template-columns:8px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 0;border-top:1px solid #F1F0EE;margin:0;font-size:13px}.pd-feed time{font-size:12px;color:var(--pd-muted);white-space:nowrap}'
+				. '.pd-feed__dot{width:8px;height:8px;border-radius:50%;background:var(--pd-indigo)}.f-ok .pd-feed__dot{background:var(--pd-ok)}.f-warn .pd-feed__dot{background:var(--pd-warn)}.f-bad .pd-feed__dot{background:var(--pd-bad)}'
+				. '.pd-chart__bars{height:120px;display:flex;align-items:flex-end;gap:12px;border-bottom:1px solid var(--pd-line)}.pd-chart__bars span{flex:1;min-height:2px;border-radius:6px 6px 0 0;background:#C7D2FE}.pd-chart__bars span:last-child{background:var(--pd-indigo)}.c-bad .pd-chart__bars span{background:#FECACA}.c-bad .pd-chart__bars span:last-child{background:var(--pd-bad)}'
+				. '.pd-chart__days{display:flex;justify-content:space-between;font-size:12px;color:var(--pd-muted);margin-top:6px}'
+				. '.pd-mini{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}.pd-mini__item{display:grid;gap:8px;background:#fff;border:1px solid var(--pd-line);border-radius:12px;padding:14px 16px}.pd-mini__top{display:flex;align-items:center;gap:10px}.pd-mini__top img{width:34px;height:34px;border-radius:9px;flex:none}.pd-mini__top img.is-off{filter:grayscale(1);opacity:.55}'
+				. '.pd-mini__name{display:block;font-weight:700;color:var(--pd-ink)}.pd-mini__ver{display:block;font-size:12px;color:var(--pd-muted)}.pd-mini__foot{display:flex;align-items:center;justify-content:space-between;gap:8px}'
+				. '@media (max-width:1100px){.pd-dash__row,.pd-dash__row--wide,.pd-dash__row--2{grid-template-columns:minmax(0,1fr)}}@media (max-width:600px){.pd-health{flex-direction:column;text-align:center}.pd-app .pd-health h2{text-align:center;margin-left:0}.pd-sev{justify-content:center}.pd-check__row{grid-template-columns:20px minmax(0,1fr)}.pd-check__row .button{grid-column:2;justify-self:start}}'
+				. '@media (prefers-reduced-motion:reduce){.pd-ai-btn{transition:none}}';
+		}
+
+		/** The dashboard's behaviour; builds every node with textContent, so findings can't inject markup. */
 		private static function check_js() {
 			return <<<'JS'
-(function(){var C=window.PrasatCheck,card=document.getElementById('pd-site-check');if(!C||!card)return;
-var run=card.querySelector('.pd-check__run'),status=card.querySelector('.pd-check__status'),out=card.querySelector('.pd-check__results'),ring=card.querySelector('.pd-check__ring');
+(function(){var C=window.PrasatCheck,card=document.getElementById('pd-site-check');
+document.querySelectorAll('.pd-job[data-pct]').forEach(function(j){if(!window.PrasatUI)return;var l=PrasatUI.loader('fill',{label:j.getAttribute('data-title')});l.set(+j.getAttribute('data-pct'),j.getAttribute('data-text'));j.insertBefore(l.el,j.querySelector('.pd-job__bar'));});
+var ai=document.querySelector('.pd-ai-btn'),note=document.querySelector('.pd-ai__note');
+if(ai)ai.addEventListener('click',function(){if(C&&C.ai){document.dispatchEvent(new CustomEvent('prasat:ai-optimize',{detail:C.last||null}));return;}if(note){note.hidden=false;note.focus&&note.focus();}});
+if(!C||!card)return;
+var run=card.querySelector('.pd-check__run'),status=card.querySelector('.pd-check__status'),ring=card.querySelector('.pd-check__ring'),sev=card.querySelector('.pd-sev');
+var fix=document.getElementById('pd-fix'),list=fix?fix.querySelector('.pd-fix__list'):null,more=fix?fix.querySelector('.pd-fix__more'):null,out=fix?fix.querySelector('.pd-check__results'):null,count=fix?fix.querySelector('.pd-fix__count'):null;
+var aiFix=document.querySelector('[data-ai="todo"]');
 var SEV={critical:'Critical',high:'High',medium:'Medium',low:'Low'},AREA={wordpress:'WordPress',bastion:'Security',lifeboat:'Backups',slipstream:'Speed',compass:'Search (SEO)',featherweight:'Images'};
 function el(t,c,txt){var e=document.createElement(t);if(c)e.className=c;if(txt!=null)e.textContent=txt;return e;}
 function ago(ts){var s=Math.round(Date.now()/1000-ts);if(s<90)return 'just now';if(s<5400)return Math.round(s/60)+' minutes ago';if(s<129600)return Math.round(s/3600)+' hours ago';return Math.round(s/86400)+' days ago';}
 function row(it){var li=el('li','pd-check__row'),tick=el('span','pd-tick'+(it.status==='fail'?' pd-tick--bad':it.status==='warn'?' pd-tick--warn':it.status==='info'?' pd-tick--info':''),it.status==='pass'?'✓':(it.status==='info'?'i':'!'));tick.setAttribute('aria-hidden','true');
 var body=el('div');body.appendChild(el('span','pd-check__title',it.title));if(it.detail)body.appendChild(el('span','pd-check__detail',it.detail));
-if(it.status!=='pass'){var meta=el('span','pd-check__meta');meta.appendChild(el('span','pd-badge'+(it.severity==='critical'||it.severity==='high'?' pd-badge--bad':' pd-badge--warn'),SEV[it.severity]||''));meta.appendChild(el('span','pd-badge',(C.names&&C.names[it.plugin])||it.plugin));body.appendChild(meta);}
+if(it.status!=='pass'&&it.status!=='info'){var meta=el('span','pd-check__meta');meta.appendChild(el('span','pd-badge'+(it.severity==='critical'||it.severity==='high'?' pd-badge--bad':' pd-badge--warn'),SEV[it.severity]||''));meta.appendChild(el('span','pd-badge',(C.names&&C.names[it.plugin])||it.plugin));body.appendChild(meta);}
 li.appendChild(tick);li.appendChild(body);if(it.fix_url&&it.status!=='pass'){var a=el('a','button',it.fix_label||'Fix');a.href=it.fix_url;if(a.host!==location.host){a.target='_blank';a.rel='noopener';}li.appendChild(a);}return li;}
 function show(r){if(!r||!r.items)return;var tone=r.score>=75?'good':r.score>=50?'warn':'bad';card.classList.remove('pd-check--good','pd-check--warn','pd-check--bad');card.classList.add('pd-check--'+tone);
 ring.style.setProperty('--p',r.score);ring.querySelector('.pd-check__grade').textContent=r.grade;ring.querySelector('.pd-check__num').textContent=r.score+'/100';ring.setAttribute('aria-label','Website score '+r.score+' out of 100, grade '+r.grade);
 run.textContent='Check again';var todo=r.items.filter(function(i){return i.status==='fail'||i.status==='warn';}),passed=r.items.filter(function(i){return i.status==='pass';});
-status.textContent='Checked '+ago(r.time)+' · '+(todo.length?todo.length+' things to do':'nothing to do');out.textContent='';out.hidden=false;
-if(!todo.length)out.appendChild(el('p','pd-check__good','Everything checked is in good shape.'));
-var groups={},keys=[];todo.forEach(function(i){if(!groups[i.plugin]){groups[i.plugin]=[];keys.push(i.plugin);}groups[i.plugin].push(i);});
-keys.forEach(function(k){var g=el('div','pd-check__group');g.appendChild(el('h3',null,AREA[k]||k));var ul=el('ul','pd-check__list');groups[k].forEach(function(i){ul.appendChild(row(i));});g.appendChild(ul);out.appendChild(g);});
-if(r.missing&&r.missing.length){var g2=el('div','pd-check__group');g2.appendChild(el('h3',null,'Not covered yet'));var ul2=el('ul','pd-check__list');r.missing.forEach(function(m){ul2.appendChild(row({status:'info',severity:'low',plugin:m.id,title:m.name,detail:m.desc,fix_url:'https://www.prasatdigital.com',fix_label:'Learn more'}));});g2.appendChild(ul2);out.appendChild(g2);}
-if(passed.length){var d=el('details','pd-check__passed');d.appendChild(el('summary',null,passed.length+' checks passed'));var ul3=el('ul','pd-check__list');passed.forEach(function(i){ul3.appendChild(row(i));});d.appendChild(ul3);out.appendChild(d);}}
-run.addEventListener('click',function(){run.disabled=true;run.setAttribute('aria-busy','true');status.textContent='Checking your website…';
+status.textContent='Checked '+ago(r.time)+' · '+(todo.length?todo.length+' things to do':'nothing to do');
+if(sev){sev.textContent='';var n={critical:0,high:0,medium:0,low:0};todo.forEach(function(i){n[i.severity]=(n[i.severity]||0)+1;});['critical','high','medium','low'].forEach(function(k){if(n[k])sev.appendChild(el('span','s-'+k,n[k]+' '+k));});sev.appendChild(el('span','s-pass',passed.length+' passed'));}
+if(aiFix)aiFix.textContent=String(todo.length);
+if(!list)return;list.textContent='';if(count)count.textContent=todo.length?todo.length+' to do':'';
+if(!todo.length)list.appendChild(el('li','pd-check__good','Everything checked is in good shape.'));
+todo.slice(0,5).forEach(function(i){list.appendChild(row(i));});
+out.textContent='';out.hidden=true;
+var rest=todo.slice(5),groups={},keys=[];rest.forEach(function(i){if(!groups[i.plugin]){groups[i.plugin]=[];keys.push(i.plugin);}groups[i.plugin].push(i);});
+keys.forEach(function(k){var g=el('div','pd-check__group');g.appendChild(el('h3',null,AREA[k]||k));var ul=el('ul','pd-fix__list');groups[k].forEach(function(i){ul.appendChild(row(i));});g.appendChild(ul);out.appendChild(g);});
+if(r.missing&&r.missing.length){var g2=el('div','pd-check__group');g2.appendChild(el('h3',null,'Not covered yet'));var ul2=el('ul','pd-fix__list');r.missing.forEach(function(m){ul2.appendChild(row({status:'info',severity:'low',plugin:m.id,title:m.name,detail:m.desc,fix_url:'https://www.prasatdigital.com',fix_label:'Learn more'}));});g2.appendChild(ul2);out.appendChild(g2);}
+if(passed.length){var d=el('details','pd-check__passed');d.appendChild(el('summary',null,passed.length+' checks passed'));var ul3=el('ul','pd-fix__list');passed.forEach(function(i){ul3.appendChild(row(i));});d.appendChild(ul3);out.appendChild(d);}
+if(more){var hasMore=out.childNodes.length>0;more.hidden=!hasMore;more.setAttribute('aria-expanded','false');more.textContent=rest.length?'Show '+rest.length+' more and passed checks':'Show passed checks';}}
+if(more)more.addEventListener('click',function(){var open=out.hidden;out.hidden=!open;more.setAttribute('aria-expanded',open?'true':'false');more.textContent=open?'Show less':(more.textContent);});
+run.addEventListener('click',function(){run.setAttribute('aria-busy','true');status.textContent='Checking your website…';
+var L=window.PrasatUI?PrasatUI.loader('build',{size:'lg'}):null;if(L){ring.hidden=true;ring.parentNode.insertBefore(L.el,ring);}
 var b=new FormData();b.append('action','prasat_site_check');b.append('nonce',C.nonce);
-fetch(C.ajax,{method:'POST',credentials:'same-origin',body:b}).then(function(r){return r.json();}).then(function(j){if(!j||!j.success)throw 0;C.last=j.data;show(j.data);}).catch(function(){status.textContent='The check could not finish. Please reload and try again.';}).then(function(){run.disabled=false;run.removeAttribute('aria-busy');});});
-if(C.last)show(C.last);if(C.ai){var ai=card.querySelector('.pd-check__ai-btn');ai.disabled=false;ai.removeAttribute('aria-disabled');ai.textContent='Write AI summary';}
+fetch(C.ajax,{method:'POST',credentials:'same-origin',body:b}).then(function(r){return r.json();}).then(function(j){if(!j||!j.success)throw 0;C.last=j.data;show(j.data);}).catch(function(){status.textContent='The check could not finish. Please reload and try again.';}).then(function(){if(L){L.el.remove();ring.hidden=false;}run.removeAttribute('aria-busy');});});
+if(C.last)show(C.last);
 })();
 JS;
 		}
@@ -480,59 +549,133 @@ JS;
 				</header>
 				<hr class="wp-header-end">
 
-				<section class="pd-card pd-check" id="pd-site-check" aria-labelledby="pd-check-t">
-					<div class="pd-check__hero">
-						<div class="pd-check__ring" role="img" aria-label="" style="--p:0"><span class="pd-check__grade">?</span><span class="pd-check__num"></span></div>
-						<div class="pd-check__intro">
-							<h2 id="pd-check-t">Check my website</h2>
-							<p class="pd-lead pd-check__lead">One click checks security, backups, speed, search visibility, images and WordPress itself, and lists what to do first.</p>
-							<div class="pd-actions">
-								<button type="button" class="button button-primary button-hero pd-check__run">Check my website</button>
-								<span class="pd-check__status" role="status" aria-live="polite"></span>
-							</div>
-						</div>
-						<aside class="pd-check__ai" aria-label="AI summary">
-							<span class="pd-badge pd-badge--navy">Premium</span>
-							<strong>AI summary</strong>
-							<p>A plain-language report of what matters most on your site, written by AI.</p>
-							<button type="button" class="button pd-check__ai-btn" aria-disabled="true" disabled>Coming soon</button>
-						</aside>
-					</div>
-					<div class="pd-check__results" hidden></div>
-				</section>
-
-				<div class="pd-products">
-					<?php foreach ( self::catalog() as $id => $p ) : ?>
-						<?php
-						$is_installed = isset( $installed[ $p['file'] ] );
-						$is_active    = is_plugin_active( $p['file'] );
-						?>
-						<section class="pd-card pd-product">
-							<div class="pd-product__head">
-								<?php if ( $assets ) : ?>
-									<span class="pd-product__icon pd-product__icon--img<?php echo $is_active ? '' : ' is-off'; ?>"><img src="<?php echo esc_url( self::icon_url( $id ) ); ?>" alt="" width="44" height="44"></span>
-								<?php else : ?>
-									<span class="pd-product__icon<?php echo $is_active ? '' : ' is-off'; ?>"><?php echo self::icon( $id ); // phpcs:ignore -- fixed SVG. ?></span>
-								<?php endif; ?>
-								<div><h2><?php echo esc_html( $p['name'] ); ?></h2><span class="pd-product__tag"><?php echo esc_html( $p['tag'] ); ?></span></div>
-							</div>
-							<p><?php echo esc_html( $p['desc'] ); ?></p>
-							<div class="pd-actions">
-								<?php if ( $is_active ) : ?>
-									<span class="pd-badge pd-badge--ok">&#10003; <?php echo esc_html__( 'Active', 'default' ); ?></span>
-									<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=' . $p['page'] ) ); ?>"><?php echo esc_html__( 'Open', 'default' ); ?></a>
-								<?php elseif ( $is_installed ) : ?>
-									<span class="pd-badge"><?php echo esc_html__( 'Installed', 'default' ); ?></span>
-									<?php if ( current_user_can( 'activate_plugins' ) ) : ?>
-										<a class="button" href="<?php echo esc_url( wp_nonce_url( admin_url( 'plugins.php?action=activate&plugin=' . rawurlencode( $p['file'] ) ), 'activate-plugin_' . $p['file'] ) ); ?>"><?php echo esc_html__( 'Activate', 'default' ); ?></a>
-									<?php endif; ?>
-								<?php else : ?>
-									<span class="pd-badge"><?php echo esc_html__( 'Not installed', 'default' ); ?></span>
-									<a class="button" href="<?php echo esc_url( self::SITE ); ?>" target="_blank" rel="noopener"><?php echo esc_html__( 'Learn more', 'default' ); ?></a>
-								<?php endif; ?>
+				<?php
+				$dash  = self::collect_dashboard();
+				$last  = get_option( self::CHECK_OPTION );
+				$todo  = 0;
+				if ( is_array( $last ) && ! empty( $last['items'] ) ) {
+					foreach ( $last['items'] as $it ) {
+						$todo += in_array( $it['status'], array( 'fail', 'warn' ), true ) ? 1 : 0;
+					}
+				}
+				$days = array();
+				for ( $i = 6; $i >= 0; $i-- ) {
+					$days[] = 0 === $i ? 'Today' : wp_date( 'D', time() - $i * DAY_IN_SECONDS );
+				}
+				?>
+				<div class="pd-dash">
+					<div class="pd-dash__row">
+						<section class="pd-card pd-check pd-health" id="pd-site-check" aria-labelledby="pd-check-t">
+							<div class="pd-check__ring" role="img" aria-label="Website not checked yet" style="--p:0"><span class="pd-check__grade">?</span><span class="pd-check__num"></span></div>
+							<div class="pd-health__body">
+								<h2 id="pd-check-t">Website health</h2>
+								<p class="pd-check__status" role="status" aria-live="polite">One click checks security, backups, speed, search, images and WordPress itself.</p>
+								<div class="pd-sev"></div>
+								<div><button type="button" class="button button-primary button-hero pd-check__run">Check my website</button></div>
 							</div>
 						</section>
-					<?php endforeach; ?>
+
+						<section class="pd-ai" aria-labelledby="pd-ai-t">
+							<div class="pd-ai__head"><h2 id="pd-ai-t">Smart AI Optimize</h2><span class="pd-ai__tag">Premium</span></div>
+							<p>Backs up first, fixes what is safe to fix, then guides you through the rest.</p>
+							<div class="pd-ai__nums"><div><b data-ai="todo"><?php echo (int) $todo; ?></b><span>things to optimize</span></div><div><b>1</b><span>click</span></div></div>
+							<button type="button" class="pd-ai-btn" aria-describedby="pd-ai-note">
+								<svg width="26" height="22" viewBox="0 0 26 22" aria-hidden="true"><path d="M14 4c.7 5.4 2.7 7.4 8 8-5.3.6-7.3 2.6-8 8-.7-5.4-2.7-7.4-8-8 5.3-.6 7.3-2.6 8-8z" fill="#fff"/><path d="M5 1c.3 2.2 1 2.9 3.2 3.2C6 4.5 5.3 5.2 5 7.4 4.7 5.2 4 4.5 1.8 4.2 4 3.9 4.7 3.2 5 1z" fill="#fff"/><path d="M22.5 2c.2 1.4.7 1.9 2.1 2.1-1.4.2-1.9.7-2.1 2.1-.2-1.4-.7-1.9-2.1-2.1 1.4-.2 1.9-.7 2.1-2.1z" fill="#fff"/></svg>
+								Optimize with AI
+							</button>
+							<p class="pd-ai__note" id="pd-ai-note" tabindex="-1" hidden>Smart AI Optimize is part of Prasat Premium and is coming soon. <a href="<?php echo esc_url( self::SITE ); ?>" target="_blank" rel="noopener" style="color:#fff">Get notified</a></p>
+						</section>
+					</div>
+
+					<div class="pd-tiles">
+						<?php foreach ( $dash['tiles'] as $t ) : ?>
+							<?php $tone = isset( $t['tone'] ) && in_array( $t['tone'], array( 'ok', 'warn', 'bad', 'muted' ), true ) ? $t['tone'] : 'muted'; ?>
+							<a class="pd-tile t-<?php echo esc_attr( $tone ); ?>" href="<?php echo esc_url( isset( $t['url'] ) ? $t['url'] : '#' ); ?>"<?php echo isset( $t['url'] ) && 0 !== strpos( $t['url'], admin_url() ) ? ' target="_blank" rel="noopener"' : ''; ?>>
+								<span class="pd-tile__area"><span class="pd-tile__dot" aria-hidden="true"></span><?php echo esc_html( isset( $t['area'] ) ? $t['area'] : '' ); ?></span>
+								<span class="pd-tile__value"><?php echo esc_html( isset( $t['value'] ) ? $t['value'] : '' ); ?></span>
+								<span class="pd-tile__label"><?php echo esc_html( isset( $t['label'] ) ? $t['label'] : '' ); ?></span>
+								<span class="pd-tile__sub"><?php echo esc_html( isset( $t['sub'] ) ? $t['sub'] : '' ); ?></span>
+							</a>
+						<?php endforeach; ?>
+					</div>
+
+					<div class="pd-dash__row pd-dash__row--wide">
+						<section class="pd-card" id="pd-fix" aria-labelledby="pd-fix-t">
+							<div class="pd-card__head"><h2 id="pd-fix-t">What to fix first</h2><span class="pd-fix__count"></span></div>
+							<ul class="pd-fix__list"><li class="pd-check__good" style="color:var(--pd-muted)">Run "Check my website" to see what to fix first.</li></ul>
+							<button type="button" class="button button-link pd-fix__more" aria-controls="pd-fix-all" hidden></button>
+							<div class="pd-check__results" id="pd-fix-all" hidden></div>
+						</section>
+						<div class="pd-dash__col">
+							<?php foreach ( $dash['jobs'] as $j ) : ?>
+								<section class="pd-card pd-job" data-pct="<?php echo (int) $j['percent']; ?>" data-title="<?php echo esc_attr( $j['title'] ); ?>" data-text="<?php echo esc_attr( isset( $j['text'] ) ? $j['text'] : '' ); ?>">
+									<div class="pd-card__head"><h2><?php echo esc_html( $j['title'] ); ?></h2><a href="<?php echo esc_url( $j['url'] ); ?>">Open</a></div>
+									<div class="pd-progress pd-job__bar" data-pd-loader="1"><span style="width:<?php echo (int) $j['percent']; ?>%"></span></div>
+								</section>
+							<?php endforeach; ?>
+							<section class="pd-card" aria-labelledby="pd-feed-t">
+								<div class="pd-card__head"><h2 id="pd-feed-t">Recent activity</h2><?php if ( isset( self::$registered['bastion'] ) ) : ?><a href="<?php echo esc_url( admin_url( 'admin.php?page=bastion-activity' ) ); ?>">Activity log</a><?php endif; ?></div>
+								<?php if ( ! $dash['activity'] ) : ?>
+									<p class="pd-check__status">Nothing yet. Security events, backups and updates appear here.</p>
+								<?php else : ?>
+									<ul class="pd-feed">
+										<?php foreach ( $dash['activity'] as $a ) : ?>
+											<?php $tone = isset( $a['tone'] ) && in_array( $a['tone'], array( 'ok', 'warn', 'bad' ), true ) ? $a['tone'] : 'brand'; ?>
+											<li class="f-<?php echo esc_attr( $tone ); ?>"><span class="pd-feed__dot" aria-hidden="true"></span><span><?php echo esc_html( $a['text'] ); ?></span><time datetime="<?php echo esc_attr( gmdate( 'c', (int) $a['time'] ) ); ?>"><?php echo esc_html( human_time_diff( (int) $a['time'] ) ); ?></time></li>
+										<?php endforeach; ?>
+									</ul>
+								<?php endif; ?>
+							</section>
+						</div>
+					</div>
+
+					<?php if ( $dash['charts'] ) : ?>
+						<div class="pd-dash__row pd-dash__row--2">
+							<?php foreach ( $dash['charts'] as $c ) : ?>
+								<?php
+								$vals = array_map( 'intval', array_slice( array_pad( (array) $c['values'], -7, 0 ), -7 ) );
+								$max  = max( 1, max( $vals ) );
+								?>
+								<section class="pd-card<?php echo isset( $c['tone'] ) && 'bad' === $c['tone'] ? ' c-bad' : ''; ?>">
+									<div class="pd-card__head"><h2><?php echo esc_html( $c['title'] ); ?></h2><span><?php echo esc_html( isset( $c['summary'] ) ? $c['summary'] : '' ); ?></span></div>
+									<div class="pd-chart__bars" role="img" aria-label="<?php echo esc_attr( $c['title'] . ': ' . implode( ', ', $vals ) ); ?>">
+										<?php foreach ( $vals as $v ) : ?><span style="height:<?php echo (int) round( 110 * $v / $max ); ?>px" title="<?php echo esc_attr( number_format_i18n( $v ) ); ?>"></span><?php endforeach; ?>
+									</div>
+									<div class="pd-chart__days" aria-hidden="true"><?php foreach ( $days as $d ) : ?><span><?php echo esc_html( $d ); ?></span><?php endforeach; ?></div>
+								</section>
+							<?php endforeach; ?>
+						</div>
+					<?php endif; ?>
+
+					<div class="pd-mini">
+						<?php foreach ( self::catalog() as $id => $p ) : ?>
+							<?php
+							$is_installed = isset( $installed[ $p['file'] ] );
+							$is_active    = is_plugin_active( $p['file'] );
+							$ver          = $is_installed && ! empty( $installed[ $p['file'] ]['Version'] ) ? $installed[ $p['file'] ]['Version'] : '';
+							?>
+							<section class="pd-mini__item" aria-label="<?php echo esc_attr( $p['name'] ); ?>">
+								<div class="pd-mini__top">
+									<?php if ( $assets ) : ?><img src="<?php echo esc_url( self::icon_url( $id ) ); ?>" alt="" width="34" height="34"<?php echo $is_active ? '' : ' class="is-off"'; ?>><?php endif; ?>
+									<div><span class="pd-mini__name"><?php echo esc_html( $p['name'] ); ?></span><span class="pd-mini__ver"><?php echo $ver ? esc_html( 'v' . $ver . ' · ' . $p['tag'] ) : esc_html( $p['tag'] ); ?></span></div>
+								</div>
+								<div class="pd-mini__foot">
+									<?php if ( $is_active ) : ?>
+										<span class="pd-badge pd-badge--ok">&#10003; Active</span>
+										<a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=' . $p['page'] ) ); ?>">Open</a>
+									<?php elseif ( $is_installed ) : ?>
+										<span class="pd-badge">Installed</span>
+										<?php if ( current_user_can( 'activate_plugins' ) ) : ?>
+											<a class="button" href="<?php echo esc_url( wp_nonce_url( admin_url( 'plugins.php?action=activate&plugin=' . rawurlencode( $p['file'] ) ), 'activate-plugin_' . $p['file'] ) ); ?>">Activate</a>
+										<?php endif; ?>
+									<?php else : ?>
+										<span class="pd-badge">Not installed</span>
+										<a class="button" href="<?php echo esc_url( self::SITE ); ?>" target="_blank" rel="noopener">Learn more</a>
+									<?php endif; ?>
+								</div>
+							</section>
+						<?php endforeach; ?>
+					</div>
 				</div>
 
 				<section class="pd-card">

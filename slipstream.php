@@ -3,7 +3,7 @@
  * Plugin Name:       Slipstream
  * Plugin URI:        https://www.prasatdigital.com
  * Description:       Make WordPress fast: page cache with automatic clearing and preloading, browser caching, HTML minify, deferred or delayed JavaScript, lazy media, YouTube click-to-load, CDN, database clean-up and switches for the WordPress features you don't use.
- * Version:           1.0.4
+ * Version:           1.0.5
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Update URI:        https://github.com/thhyarith-prog/slipstream
@@ -18,7 +18,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'SLIPSTREAM_VERSION', '1.0.4' );
+define( 'SLIPSTREAM_VERSION', '1.0.5' );
 define( 'SLIPSTREAM_FILE', __FILE__ );
 define( 'SLIPSTREAM_DIR', plugin_dir_path( __FILE__ ) );
 define( 'SLIPSTREAM_URL', plugin_dir_url( __FILE__ ) );
@@ -47,7 +47,7 @@ unset( $slipstream_file );
 if ( is_admin() || wp_doing_ajax() ) {
 	require_once SLIPSTREAM_DIR . 'includes/class-slipstream-admin.php';
 	require_once SLIPSTREAM_DIR . 'includes/prasat-hub.php';
-	Prasat_Hub::register( 'slipstream', array( 'assets' => SLIPSTREAM_URL . 'assets/', 'health' => array( 'Slipstream_Admin', 'health' ) ) );
+	Prasat_Hub::register( 'slipstream', array( 'assets' => SLIPSTREAM_URL . 'assets/', 'health' => array( 'Slipstream_Admin', 'health' ), 'dashboard' => array( 'Slipstream_Admin', 'dashboard' ) ) );
 }
 
 final class Slipstream {
