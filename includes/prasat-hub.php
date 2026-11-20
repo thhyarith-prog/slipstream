@@ -16,7 +16,7 @@ if ( ! class_exists( 'Prasat_Hub', false ) ) {
 	final class Prasat_Hub {
 
 		const SLUG    = 'prasat-digital';
-		const VERSION = '1.0.6';
+		const VERSION = '1.0.7';
 		const CAP     = 'manage_options';
 		const SITE    = 'https://www.prasatdigital.com';
 		const FOUNDER = 'Thyyarith';
@@ -329,6 +329,7 @@ if ( ! class_exists( 'Prasat_Hub', false ) ) {
 				'summary' => sanitize_textarea_field( $body['summary'] ),
 				'steps'   => $steps,
 				'model'   => isset( $body['model'] ) ? sanitize_text_field( $body['model'] ) : '',
+				'provider' => isset( $body['provider'] ) ? sanitize_key( $body['provider'] ) : '',
 			);
 			update_option( self::AI_PLAN_OPTION, $plan, false );
 			wp_send_json_success( array( 'plan' => $plan, 'check' => $check ) );
@@ -553,8 +554,14 @@ if ( ! class_exists( 'Prasat_Hub', false ) ) {
 				. '.pd-sev .s-critical{background:var(--pd-bad-bg);color:var(--pd-bad)}.pd-sev .s-high{background:var(--pd-warn-bg);color:var(--pd-warn)}.pd-sev .s-medium{background:var(--pd-indigo-soft);color:var(--pd-indigo-dark)}.pd-sev .s-low{background:var(--pd-soft);color:var(--pd-text)}.pd-sev .s-pass{background:var(--pd-ok-bg);color:var(--pd-ok)}'
 				. '.pd-ai{background:var(--pd-navy);color:#fff;border-radius:14px;padding:22px;display:flex;flex-direction:column;gap:10px}.pd-ai h2{color:#fff;font-size:18px}.pd-ai__head{display:flex;align-items:center;justify-content:space-between;gap:8px}'
 				. '.pd-ai__tag{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 9px;border-radius:6px;background:#fff;color:var(--pd-navy)}.pd-ai p{margin:0;color:#CBD5E1;line-height:1.5}.pd-ai__nums{display:flex;gap:18px}.pd-ai__nums b{display:block;font-size:26px}.pd-ai__nums span{font-size:12px;color:#CBD5E1}'
-				. '.pd-ai-btn{margin-top:4px;min-height:54px;padding:0 28px;border:0;border-radius:999px;background:linear-gradient(90deg,#38A8E8 0%,#2B3FE0 32%,#8A2BE2 66%,#E0337A 100%);color:#fff;font-size:17px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;gap:12px;cursor:pointer;box-shadow:0 16px 28px -14px rgba(138,43,226,.75),0 12px 24px -14px rgba(224,51,122,.6),0 12px 24px -14px rgba(43,63,224,.6);transition:transform .15s ease,filter .15s ease}'
-				. '.pd-ai-btn:hover{filter:brightness(1.08);transform:translateY(-1px)}.pd-ai-btn:active{transform:scale(.98)}.pd-ai-btn:focus-visible{outline:3px solid #fff;outline-offset:3px}.pd-ai-btn svg{flex:none}.pd-ai__note{font-size:13px;color:#E0E7FF}.pd-ai__note[hidden]{display:none}'
+				. '.pd-ai-btn{margin-top:4px;align-self:flex-start;min-height:52px;padding:0 24px 0 18px;border:0;border-radius:999px;background:#fff;color:var(--pd-navy);font-size:16px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:12px;cursor:pointer;box-shadow:0 10px 22px -12px rgba(45,212,191,.7);transition:transform .15s ease,box-shadow .2s ease,background-color .2s ease}'
+				. '.pd-ai-btn:hover{transform:translateY(-1px);box-shadow:0 14px 26px -12px rgba(45,212,191,.85)}.pd-ai-btn:active{transform:scale(.98)}.pd-ai-btn:focus-visible{outline:3px solid #fff;outline-offset:3px}.pd-ai-btn svg{flex:none}.pd-ai__note{font-size:13px;color:#E0E7FF}.pd-ai__note[hidden]{display:none}'
+				. '.pd-ai-btn__temple rect{transition:transform .25s ease}.pd-ai-btn__temple rect:nth-child(2){transition-delay:.03s}.pd-ai-btn__temple rect:nth-child(3){transition-delay:.06s}.pd-ai-btn__temple rect:nth-child(4){transition-delay:.09s}'
+				. '.pd-ai-btn:hover .pd-ai-btn__temple rect:nth-child(1){transform:translateY(-2px)}.pd-ai-btn:hover .pd-ai-btn__temple rect:nth-child(2){transform:translateY(-1.3px)}.pd-ai-btn:hover .pd-ai-btn__temple rect:nth-child(3){transform:translateY(-.6px)}'
+				. '.pd-app .pd-ai-btn[aria-busy=true]::before{display:none!important}.pd-ai-btn[aria-busy=true]{cursor:progress;pointer-events:none}'
+				. '.pd-ai-btn[aria-busy=true] .pd-ai-btn__temple rect{opacity:.15;animation:pd-ai-build 1.6s ease-in-out infinite}.pd-ai-btn[aria-busy=true] .pd-ai-btn__temple rect:nth-child(3){animation-delay:.2s}.pd-ai-btn[aria-busy=true] .pd-ai-btn__temple rect:nth-child(2){animation-delay:.4s}.pd-ai-btn[aria-busy=true] .pd-ai-btn__temple rect:nth-child(1){animation-delay:.6s}'
+				. '@keyframes pd-ai-build{0%{opacity:.15;transform:translateY(3px)}25%,70%{opacity:1;transform:none}100%{opacity:.15}}'
+				. '.pd-ai-btn__ok{display:none}.pd-ai-btn[data-state=done]{background:#2DD4BF}.pd-ai-btn[data-state=done] .pd-ai-btn__temple{display:none}.pd-ai-btn[data-state=done] .pd-ai-btn__ok{display:block}'
 				. '.pd-tiles{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}.pd-tile{display:grid;gap:5px;align-content:start;background:#fff;border:1px solid var(--pd-line);border-radius:12px;padding:14px 16px;color:var(--pd-ink);text-decoration:none}'
 				. 'a.pd-tile:hover{border-color:var(--pd-line-strong)}a.pd-tile:focus-visible{outline:2px solid var(--pd-indigo);outline-offset:2px}.pd-tile__area{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--pd-muted)}'
 				. '.pd-tile__dot{width:8px;height:8px;border-radius:50%;background:var(--pd-line-strong)}.t-ok .pd-tile__dot{background:var(--pd-ok)}.t-warn .pd-tile__dot{background:var(--pd-warn)}.t-bad .pd-tile__dot{background:var(--pd-bad)}'
@@ -571,14 +578,14 @@ if ( ! class_exists( 'Prasat_Hub', false ) ) {
 				. '.pd-mini{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}.pd-mini__item{display:grid;gap:8px;background:#fff;border:1px solid var(--pd-line);border-radius:12px;padding:14px 16px}.pd-mini__top{display:flex;align-items:center;gap:10px}.pd-mini__top img{width:34px;height:34px;border-radius:9px;flex:none}.pd-mini__top img.is-off{filter:grayscale(1);opacity:.55}'
 				. '.pd-mini__name{display:block;font-weight:700;color:var(--pd-ink)}.pd-mini__ver{display:block;font-size:12px;color:var(--pd-muted)}.pd-mini__foot{display:flex;align-items:center;justify-content:space-between;gap:8px}'
 				. '@media (max-width:1100px){.pd-dash__row,.pd-dash__row--wide,.pd-dash__row--2{grid-template-columns:minmax(0,1fr)}}@media (max-width:600px){.pd-health{flex-direction:column;text-align:center}.pd-app .pd-health h2{text-align:center;margin-left:0}.pd-sev{justify-content:center}.pd-check__row{grid-template-columns:20px minmax(0,1fr)}.pd-check__row .button{grid-column:2;justify-self:start}}'
-				. '.pd-ai-btn[aria-busy=true]{cursor:progress;filter:saturate(.75)}.pd-ai__note p,.pd-ai__keyline,.pd-ai__msg{margin:0;font-size:13px;color:#E0E7FF}.pd-ai__note a{color:#fff}.pd-ai__msg:empty,.pd-ai__keyline[hidden],.pd-ai__note[hidden]{display:none}'
+				. '.pd-ai__note p,.pd-ai__keyline,.pd-ai__msg{margin:0;font-size:13px;color:#E0E7FF}.pd-ai__note a{color:#fff}.pd-ai__msg:empty,.pd-ai__keyline[hidden],.pd-ai__note[hidden]{display:none}'
 				. '.pd-ai__key{display:grid;gap:6px;margin-top:8px}.pd-ai__key label{font-size:12px;font-weight:600;color:#fff}.pd-ai__key span{display:flex;gap:8px}.pd-ai__key input{flex:1;min-width:0;border-radius:8px;border:1px solid #64748B;padding:6px 10px}.pd-ai__remove{background:none;border:0;padding:0;color:#fff;text-decoration:underline;cursor:pointer;font:inherit}'
 				. '.pd-plan__meta{font-size:12px}.pd-plan__summary{font-size:15px;line-height:1.55;color:var(--pd-ink);margin:0 0 6px}.pd-plan__summary:empty{display:none}.pd-plan__busy:empty{display:none}.pd-plan__busy .pd-loader{margin:10px 0}'
 				. '.pd-plan__steps{margin:0;list-style:none;counter-reset:pd-step}.pd-plan__steps li{counter-increment:pd-step;display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:12px;align-items:start;padding:12px 0;border-top:1px solid #F1F0EE;margin:0}'
 				. '.pd-plan__steps li::before{content:counter(pd-step);width:26px;height:26px;border-radius:50%;background:var(--pd-navy);color:#fff;display:grid;place-items:center;font-size:12px;font-weight:700}'
 				. '.pd-plan__title{display:block;font-weight:700;color:var(--pd-ink)}.pd-plan__why,.pd-plan__how{display:block;font-size:13px;margin-top:3px;color:var(--pd-text)}.pd-plan__why{color:var(--pd-muted)}.pd-plan__tags{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}'
 				. '@media (max-width:600px){.pd-plan__steps li{grid-template-columns:28px minmax(0,1fr)}.pd-plan__steps li .button{grid-column:2;justify-self:start}}'
-				. '@media (prefers-reduced-motion:reduce){.pd-ai-btn{transition:none}}';
+				. '@media (prefers-reduced-motion:reduce){.pd-ai-btn,.pd-ai-btn__temple rect{transition:none;animation:none!important}.pd-ai-btn[aria-busy=true] .pd-ai-btn__temple rect{opacity:.6}}';
 		}
 
 		/** The dashboard's behaviour; builds every node with textContent, so findings can't inject markup. */
@@ -624,14 +631,15 @@ var EFF={quick:'Under 5 min',medium:'Under 30 min',involved:'Takes longer'},RISK
 function post(a,extra){var b=new FormData();b.append('action',a);b.append('nonce',C.nonce);for(var k in extra)b.append(k,extra[k]);return fetch(C.ajax,{method:'POST',credentials:'same-origin',body:b}).then(function(r){return r.json().catch(function(){return {success:false,data:{code:'unreachable'}};});});}
 function say(t){if(msg)msg.textContent=t||'';}
 function findItem(id){var it=null;(C.last&&C.last.items||[]).forEach(function(i){if(i.id===id)it=i;});return it;}
-function renderPlan(p){if(!plan||!p)return;plan.hidden=false;plan.querySelector('.pd-plan__busy').textContent='';plan.querySelector('.pd-plan__summary').textContent=p.summary||'';plan.querySelector('.pd-plan__meta').textContent='Made '+ago(p.time)+(p.model?' · by Claude':'');
+function renderPlan(p){if(!plan||!p)return;plan.hidden=false;plan.querySelector('.pd-plan__busy').textContent='';plan.querySelector('.pd-plan__summary').textContent=p.summary||'';plan.querySelector('.pd-plan__meta').textContent='Made '+ago(p.time)+(p.model?' · by '+(p.provider==='deepseek'?'DeepSeek':'Claude'):'');
 var ol=plan.querySelector('.pd-plan__steps');ol.textContent='';(p.steps||[]).forEach(function(st){var li=el('li'),b=el('div');b.appendChild(el('span','pd-plan__title',st.title));if(st.why)b.appendChild(el('span','pd-plan__why',st.why));if(st.how)b.appendChild(el('span','pd-plan__how',st.how));
 var tags=el('span','pd-plan__tags');tags.appendChild(el('span','pd-badge',EFF[st.effort]||''));var r=RISK[st.risk]||RISK['backup-first'];tags.appendChild(el('span','pd-badge '+r[1],r[0]));b.appendChild(tags);li.appendChild(b);
 var it=findItem(st.item_id);if(it&&it.fix_url){var a=el('a','button',it.fix_label||'Open');a.href=it.fix_url;if(a.host!==location.host){a.target='_blank';a.rel='noopener';}li.appendChild(a);}ol.appendChild(li);});}
-function optimize(){if(ai.getAttribute('aria-busy')==='true')return;ai.setAttribute('aria-busy','true');say('');plan.hidden=false;plan.querySelector('.pd-plan__summary').textContent='';plan.querySelector('.pd-plan__steps').textContent='';plan.querySelector('.pd-plan__meta').textContent='';
-var busy=plan.querySelector('.pd-plan__busy');busy.textContent='';if(window.PrasatUI){var L=PrasatUI.loader('glow',{text:'Checking your website, then Claude writes your plan…'});busy.appendChild(L.el);}else busy.textContent='Working…';
+var lab=ai?ai.querySelector('.pd-ai-btn__label'):null,doneT=0;function label(t){if(lab)lab.textContent=t;}
+function optimize(){if(ai.getAttribute('aria-busy')==='true')return;clearTimeout(doneT);ai.removeAttribute('data-state');ai.setAttribute('aria-busy','true');label('Reading your site\u2026');say('');plan.hidden=false;plan.querySelector('.pd-plan__summary').textContent='';plan.querySelector('.pd-plan__steps').textContent='';plan.querySelector('.pd-plan__meta').textContent='';
+var busy=plan.querySelector('.pd-plan__busy');busy.textContent='';if(window.PrasatUI){var L=PrasatUI.loader('glow',{text:'Checking your website, then the AI writes your plan…'});busy.appendChild(L.el);}else busy.textContent='Working…';
 plan.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'nearest'});
-post('prasat_ai_optimize',{}).then(function(j){var d=j&&j.data||{};if(d.check){C.last=d.check;show(d.check);}if(j&&j.success){C.plan=d.plan;renderPlan(d.plan);say('Plan ready.');}else{busy.textContent='';if(C.plan)renderPlan(C.plan);else plan.hidden=true;say(ERR[d.code]||'Smart AI Optimize could not finish. Please try again.');if(d.code==='invalid_premium_key'||d.code==='no_key'){note.hidden=false;}}}).then(function(){ai.removeAttribute('aria-busy');});}
+post('prasat_ai_optimize',{}).then(function(j){var d=j&&j.data||{};if(d.check){C.last=d.check;show(d.check);}if(j&&j.success){C.plan=d.plan;renderPlan(d.plan);say('Plan ready.');ai.setAttribute('data-state','done');label('Plan ready');doneT=setTimeout(function(){ai.removeAttribute('data-state');label('Optimize with AI');},2400);}else{label('Optimize with AI');busy.textContent='';if(C.plan)renderPlan(C.plan);else plan.hidden=true;say(ERR[d.code]||'Smart AI Optimize could not finish. Please try again.');if(d.code==='invalid_premium_key'||d.code==='no_key'){note.hidden=false;}}}).then(function(){ai.removeAttribute('aria-busy');});}
 if(ai)ai.addEventListener('click',function(){if(C.ai){optimize();return;}note.hidden=false;var inp=document.getElementById('pd-ai-key');if(inp)inp.focus();});
 if(kf)kf.addEventListener('submit',function(e){e.preventDefault();var inp=document.getElementById('pd-ai-key'),btn=kf.querySelector('button');btn.setAttribute('aria-busy','true');post('prasat_ai_key',{key:inp.value}).then(function(j){if(j&&j.success){C.ai=true;inp.value='';note.hidden=true;keyline.hidden=false;say('Key saved. Click "Optimize with AI".');ai.focus();}else{say(ERR[j&&j.data&&j.data.code]||'Could not save the key.');}}).then(function(){btn.removeAttribute('aria-busy');});});
 var rm=document.querySelector('.pd-ai__remove');if(rm)rm.addEventListener('click',function(){post('prasat_ai_key',{key:''}).then(function(j){if(j&&j.success){C.ai=false;C.plan=null;keyline.hidden=true;if(plan)plan.hidden=true;say('Premium key removed.');}});});
@@ -700,8 +708,9 @@ JS;
 							<p>Backs up first, fixes what is safe to fix, then guides you through the rest.</p>
 							<div class="pd-ai__nums"><div><b data-ai="todo"><?php echo (int) $todo; ?></b><span>things to optimize</span></div><div><b>1</b><span>click</span></div></div>
 							<button type="button" class="pd-ai-btn" aria-describedby="pd-ai-note">
-								<svg width="26" height="22" viewBox="0 0 26 22" aria-hidden="true"><path d="M14 4c.7 5.4 2.7 7.4 8 8-5.3.6-7.3 2.6-8 8-.7-5.4-2.7-7.4-8-8 5.3-.6 7.3-2.6 8-8z" fill="#fff"/><path d="M5 1c.3 2.2 1 2.9 3.2 3.2C6 4.5 5.3 5.2 5 7.4 4.7 5.2 4 4.5 1.8 4.2 4 3.9 4.7 3.2 5 1z" fill="#fff"/><path d="M22.5 2c.2 1.4.7 1.9 2.1 2.1-1.4.2-1.9.7-2.1 2.1-.2-1.4-.7-1.9-2.1-2.1 1.4-.2 1.9-.7 2.1-2.1z" fill="#fff"/></svg>
-								Optimize with AI
+								<svg class="pd-ai-btn__temple" width="30" height="25" viewBox="8 7 48 40" aria-hidden="true" focusable="false"><defs><linearGradient id="pd-ai-temple-g" x1="0" y1="9" x2="0" y2="42" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#2DD4BF"/><stop offset="1" stop-color="#4F46E5"/></linearGradient></defs><g fill="url(#pd-ai-temple-g)"><rect x="25" y="9" width="14" height="6" rx=".6"/><rect x="20" y="18" width="24" height="6" rx=".6"/><rect x="15" y="27" width="34" height="6" rx=".6"/><rect x="10" y="36" width="44" height="6" rx=".6"/></g></svg>
+								<svg class="pd-ai-btn__ok" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+								<span class="pd-ai-btn__label">Optimize with AI</span>
 							</button>
 							<div class="pd-ai__note" id="pd-ai-note" tabindex="-1" hidden>
 								<p>Smart AI Optimize is part of Prasat Premium. Add your Premium key to turn it on. <a href="<?php echo esc_url( self::SITE ); ?>" target="_blank" rel="noopener">Get Premium</a></p>
