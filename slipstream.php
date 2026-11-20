@@ -3,7 +3,7 @@
  * Plugin Name:       Slipstream
  * Plugin URI:        https://www.prasatdigital.com
  * Description:       Make WordPress fast: page cache with automatic clearing and preloading, browser caching, HTML minify, deferred or delayed JavaScript, lazy media, YouTube click-to-load, CDN, database clean-up and switches for the WordPress features you don't use.
- * Version:           1.0.7
+ * Version:           1.0.8
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Update URI:        https://github.com/thhyarith-prog/slipstream
@@ -18,7 +18,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'SLIPSTREAM_VERSION', '1.0.7' );
+define( 'SLIPSTREAM_VERSION', '1.0.8' );
 define( 'SLIPSTREAM_FILE', __FILE__ );
 define( 'SLIPSTREAM_DIR', plugin_dir_path( __FILE__ ) );
 define( 'SLIPSTREAM_URL', plugin_dir_url( __FILE__ ) );

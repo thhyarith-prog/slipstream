@@ -16,7 +16,7 @@ if ( ! class_exists( 'Prasat_Hub', false ) ) {
 	final class Prasat_Hub {
 
 		const SLUG    = 'prasat-digital';
-		const VERSION = '1.0.7';
+		const VERSION = '1.0.8';
 		const CAP     = 'manage_options';
 		const SITE    = 'https://www.prasatdigital.com';
 		const FOUNDER = 'Thyyarith';
@@ -38,6 +38,7 @@ if ( ! class_exists( 'Prasat_Hub', false ) ) {
 				add_action( 'wp_ajax_prasat_site_check', array( __CLASS__, 'ajax_check' ) );
 				add_action( 'wp_ajax_prasat_ai_optimize', array( __CLASS__, 'ajax_ai_optimize' ) );
 				add_action( 'wp_ajax_prasat_ai_key', array( __CLASS__, 'ajax_ai_key' ) );
+				add_action( 'wp_ajax_prasat_ai_fix', array( __CLASS__, 'ajax_ai_fix' ) );
 			}
 		}
 
@@ -335,6 +336,178 @@ if ( ! class_exists( 'Prasat_Hub', false ) ) {
 			wp_send_json_success( array( 'plan' => $plan, 'check' => $check ) );
 		}
 
+		/* ============================================ Smart AI Optimize: fixes */
+
+		const AI_FIX_OPTION = 'prasat_ai_fixes';
+
+		/**
+		 * Automatic fixes the active Prasat plugins offer, by check id. A plugin registers
+		 * 'fixes' => callable returning [ check_id => [ 'apply' => callable, 'undo' => callable ] ].
+		 * apply() returns [ 'ok' => bool, 'did' => text, 'undo' => data, 'skip' => bool ] or WP_Error;
+		 * undo( data ) returns true or WP_Error.
+		 */
+		private static function fixers() {
+			$out = array();
+			foreach ( self::$registered as $pid => $args ) {
+				if ( empty( $args['fixes'] ) || ! is_callable( $args['fixes'] ) ) {
+					continue;
+				}
+				try {
+					$list = (array) call_user_func( $args['fixes'] );
+				} catch ( Throwable $e ) {
+					continue;
+				}
+				foreach ( $list as $id => $f ) {
+					$id = sanitize_key( $id );
+					if ( is_array( $f ) && ! empty( $f['apply'] ) && is_callable( $f['apply'] ) && ! isset( $out[ $id ] ) ) {
+						$f['plugin'] = $pid;
+						$out[ $id ]  = $f;
+					}
+				}
+			}
+			return $out;
+		}
+
+		/** The backup plugin (Lifeboat) registers 'backup' => [ 'start' => callable, 'status' => callable( id ) ]. */
+		private static function backup_provider() {
+			foreach ( self::$registered as $args ) {
+				if ( ! empty( $args['backup']['start'] ) && is_callable( $args['backup']['start'] ) && ! empty( $args['backup']['status'] ) && is_callable( $args['backup']['status'] ) ) {
+					return $args['backup'];
+				}
+			}
+			return null;
+		}
+
+		private static function backup_state( $r ) {
+			$r = is_array( $r ) ? $r : array();
+			return array(
+				'status'  => isset( $r['status'] ) && in_array( $r['status'], array( 'running', 'done', 'failed' ), true ) ? $r['status'] : 'failed',
+				'id'      => isset( $r['id'] ) ? sanitize_text_field( (string) $r['id'] ) : '',
+				'percent' => isset( $r['percent'] ) ? max( 0, min( 100, (int) $r['percent'] ) ) : 0,
+				'message' => isset( $r['message'] ) ? sanitize_text_field( (string) $r['message'] ) : '',
+			);
+		}
+
+		/** Fix history for the page: newest first, without the private undo data. */
+		public static function fix_log( $public = true ) {
+			$log = get_option( self::AI_FIX_OPTION, array() );
+			$log = is_array( $log ) ? $log : array();
+			if ( ! $public ) {
+				return $log;
+			}
+			return array_map(
+				function ( $e ) {
+					unset( $e['undo'] );
+					return $e;
+				},
+				$log
+			);
+		}
+
+		/**
+		 * The "fix it" half of Smart AI Optimize, in stages the page calls one after another:
+		 * backup → backup_status (until done) → apply; and undo for one applied fix.
+		 */
+		public static function ajax_ai_fix() {
+			check_ajax_referer( 'prasat_site_check', 'nonce' );
+			if ( ! current_user_can( self::CAP ) ) {
+				wp_send_json_error( null, 403 );
+			}
+			if ( '' === (string) get_option( self::AI_KEY_OPTION, '' ) ) {
+				wp_send_json_error( array( 'code' => 'no_key' ), 400 );
+			}
+			if ( function_exists( 'set_time_limit' ) ) {
+				@set_time_limit( 120 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
+			}
+			$stage  = isset( $_POST['stage'] ) ? sanitize_key( wp_unslash( $_POST['stage'] ) ) : '';
+			$backup = self::backup_provider();
+
+			if ( 'backup' === $stage ) {
+				if ( ! $backup ) {
+					wp_send_json_success( array( 'status' => 'none' ) );
+				}
+				wp_send_json_success( self::backup_state( call_user_func( $backup['start'] ) ) );
+			}
+
+			if ( 'backup_status' === $stage ) {
+				$id = isset( $_POST['id'] ) ? sanitize_text_field( wp_unslash( $_POST['id'] ) ) : '';
+				wp_send_json_success( $backup ? self::backup_state( call_user_func( $backup['status'], $id ) ) : array( 'status' => 'none' ) );
+			}
+
+			if ( 'apply' === $stage ) {
+				$check   = self::run_check();
+				$fixers  = self::fixers();
+				$applied = array();
+				foreach ( $check['items'] as $it ) {
+					if ( ! in_array( $it['status'], array( 'fail', 'warn' ), true ) || empty( $fixers[ $it['id'] ] ) ) {
+						continue;
+					}
+					$f = $fixers[ $it['id'] ];
+					try {
+						$r = call_user_func( $f['apply'] );
+					} catch ( Throwable $e ) {
+						$r = new WP_Error( 'fix_failed', $e->getMessage() );
+					}
+					if ( is_array( $r ) && ! empty( $r['skip'] ) ) {
+						continue;
+					}
+					$ok        = is_array( $r ) && ! empty( $r['ok'] );
+					$applied[] = array(
+						'key'      => strtolower( wp_generate_password( 10, false ) ),
+						'id'       => $it['id'],
+						'plugin'   => $f['plugin'],
+						'title'    => $it['title'],
+						'time'     => time(),
+						'ok'       => $ok,
+						'did'      => wp_strip_all_tags( is_wp_error( $r ) ? $r->get_error_message() : ( isset( $r['did'] ) ? (string) $r['did'] : '' ) ),
+						'undo'     => $ok && isset( $r['undo'] ) ? $r['undo'] : null,
+						'undoable' => $ok && ! empty( $f['undo'] ) && is_callable( $f['undo'] ),
+						'undone'   => false,
+					);
+				}
+				if ( $applied ) {
+					update_option( self::AI_FIX_OPTION, array_slice( array_merge( $applied, self::fix_log( false ) ), 0, 20 ), false );
+				}
+				$after = $applied ? self::run_check() : $check;
+				wp_send_json_success(
+					array(
+						'applied' => count( $applied ),
+						'before'  => $check['score'],
+						'check'   => $after,
+						'fixes'   => self::fix_log(),
+					)
+				);
+			}
+
+			if ( 'undo' === $stage ) {
+				$key = isset( $_POST['key'] ) ? sanitize_key( wp_unslash( $_POST['key'] ) ) : '';
+				$log = self::fix_log( false );
+				foreach ( $log as $i => $e ) {
+					if ( $e['key'] !== $key ) {
+						continue;
+					}
+					$fixers = self::fixers();
+					if ( empty( $e['undoable'] ) || ! empty( $e['undone'] ) || empty( $fixers[ $e['id'] ]['undo'] ) || ! is_callable( $fixers[ $e['id'] ]['undo'] ) ) {
+						wp_send_json_error( array( 'code' => 'cannot_undo' ), 400 );
+					}
+					try {
+						$r = call_user_func( $fixers[ $e['id'] ]['undo'], $e['undo'] );
+					} catch ( Throwable $ex ) {
+						$r = new WP_Error( 'undo_failed', $ex->getMessage() );
+					}
+					if ( is_wp_error( $r ) ) {
+						wp_send_json_error( array( 'code' => 'undo_failed', 'message' => wp_strip_all_tags( $r->get_error_message() ) ), 500 );
+					}
+					$log[ $i ]['undone'] = time();
+					update_option( self::AI_FIX_OPTION, $log, false );
+					wp_send_json_success( array( 'check' => self::run_check(), 'fixes' => self::fix_log() ) );
+				}
+				wp_send_json_error( array( 'code' => 'cannot_undo' ), 404 );
+			}
+
+			wp_send_json_error( array( 'code' => 'bad_stage' ), 400 );
+		}
+
 		/** URL of a family icon (prasat, bastion, lifeboat, slipstream, compass, featherweight). */
 		public static function icon_url( $id ) {
 			$assets = self::assets_url();
@@ -494,6 +667,8 @@ if ( ! class_exists( 'Prasat_Hub', false ) ) {
 							'last'  => get_option( self::CHECK_OPTION ) ?: null,
 							'ai'    => self::ai_ready(),
 							'plan'  => get_option( self::AI_PLAN_OPTION ) ?: null,
+							'fixes' => self::fix_log(),
+							'backup' => (bool) self::backup_provider(),
 							'names' => array_merge( wp_list_pluck( self::catalog(), 'name' ), array( 'wordpress' => 'WordPress' ) ),
 						)
 					) . ';',
@@ -580,7 +755,8 @@ if ( ! class_exists( 'Prasat_Hub', false ) ) {
 				. '@media (max-width:1100px){.pd-dash__row,.pd-dash__row--wide,.pd-dash__row--2{grid-template-columns:minmax(0,1fr)}}@media (max-width:600px){.pd-health{flex-direction:column;text-align:center}.pd-app .pd-health h2{text-align:center;margin-left:0}.pd-sev{justify-content:center}.pd-check__row{grid-template-columns:20px minmax(0,1fr)}.pd-check__row .button{grid-column:2;justify-self:start}}'
 				. '.pd-ai__note p,.pd-ai__keyline,.pd-ai__msg{margin:0;font-size:13px;color:#E0E7FF}.pd-ai__note a{color:#fff}.pd-ai__msg:empty,.pd-ai__keyline[hidden],.pd-ai__note[hidden]{display:none}'
 				. '.pd-ai__key{display:grid;gap:6px;margin-top:8px}.pd-ai__key label{font-size:12px;font-weight:600;color:#fff}.pd-ai__key span{display:flex;gap:8px}.pd-ai__key input{flex:1;min-width:0;border-radius:8px;border:1px solid #64748B;padding:6px 10px}.pd-ai__remove{background:none;border:0;padding:0;color:#fff;text-decoration:underline;cursor:pointer;font:inherit}'
-				. '.pd-plan__meta{font-size:12px}.pd-plan__summary{font-size:15px;line-height:1.55;color:var(--pd-ink);margin:0 0 6px}.pd-plan__summary:empty{display:none}.pd-plan__busy:empty{display:none}.pd-plan__busy .pd-loader{margin:10px 0}'
+				. '.pd-plan__meta{font-size:12px}.pd-plan__summary{font-size:15px;line-height:1.55;color:var(--pd-ink);margin:0 0 6px}.pd-plan__summary:empty{display:none}'
+				. '.pd-fixed{background:var(--pd-ok-bg);border-radius:12px;padding:14px 16px;margin:0 0 14px}.pd-app .pd-fixed h3{margin:0 0 4px;font-size:14px;color:var(--pd-ink)}.pd-fixed__note{margin:0 0 6px;font-size:13px;color:var(--pd-text)}.pd-fixed__note:empty{display:none}.pd-fixed[hidden]{display:none}.pd-fixed__list{margin:0;list-style:none}.pd-fixed__row{display:grid;grid-template-columns:20px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 0;margin:0;border-top:1px solid rgba(12,29,63,.08)}.pd-fixed__row:first-child{border-top:0}.pd-fixed__did{display:block;color:var(--pd-ink);font-weight:600}.pd-fixed__when{display:block;font-size:12px;color:var(--pd-muted)}.pd-fixed__row.is-undone .pd-fixed__did{font-weight:400;color:var(--pd-muted);text-decoration:line-through}.pd-plan__busy:empty{display:none}.pd-plan__busy .pd-loader{margin:10px 0}'
 				. '.pd-plan__steps{margin:0;list-style:none;counter-reset:pd-step}.pd-plan__steps li{counter-increment:pd-step;display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:12px;align-items:start;padding:12px 0;border-top:1px solid #F1F0EE;margin:0}'
 				. '.pd-plan__steps li::before{content:counter(pd-step);width:26px;height:26px;border-radius:50%;background:var(--pd-navy);color:#fff;display:grid;place-items:center;font-size:12px;font-weight:700}'
 				. '.pd-plan__title{display:block;font-weight:700;color:var(--pd-ink)}.pd-plan__why,.pd-plan__how{display:block;font-size:13px;margin-top:3px;color:var(--pd-text)}.pd-plan__why{color:var(--pd-muted)}.pd-plan__tags{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}'
@@ -636,14 +812,31 @@ var ol=plan.querySelector('.pd-plan__steps');ol.textContent='';(p.steps||[]).for
 var tags=el('span','pd-plan__tags');tags.appendChild(el('span','pd-badge',EFF[st.effort]||''));var r=RISK[st.risk]||RISK['backup-first'];tags.appendChild(el('span','pd-badge '+r[1],r[0]));b.appendChild(tags);li.appendChild(b);
 var it=findItem(st.item_id);if(it&&it.fix_url){var a=el('a','button',it.fix_label||'Open');a.href=it.fix_url;if(a.host!==location.host){a.target='_blank';a.rel='noopener';}li.appendChild(a);}ol.appendChild(li);});}
 var lab=ai?ai.querySelector('.pd-ai-btn__label'):null,doneT=0;function label(t){if(lab)lab.textContent=t;}
-function optimize(){if(ai.getAttribute('aria-busy')==='true')return;clearTimeout(doneT);ai.removeAttribute('data-state');ai.setAttribute('aria-busy','true');label('Reading your site\u2026');say('');plan.hidden=false;plan.querySelector('.pd-plan__summary').textContent='';plan.querySelector('.pd-plan__steps').textContent='';plan.querySelector('.pd-plan__meta').textContent='';
-var busy=plan.querySelector('.pd-plan__busy');busy.textContent='';if(window.PrasatUI){var L=PrasatUI.loader('glow',{text:'Checking your website, then the AI writes your plan…'});busy.appendChild(L.el);}else busy.textContent='Working…';
+var fixed=plan?plan.querySelector('.pd-fixed'):null;
+function renderFixes(list,text){if(!fixed)return;var ul=fixed.querySelector('.pd-fixed__list'),rows=(list||[]).slice(0,8);ul.textContent='';if(text!=null)fixed.querySelector('.pd-fixed__note').textContent=text;if(!rows.length){fixed.hidden=!text;return;}fixed.hidden=false;plan.hidden=false;
+rows.forEach(function(e){var good=e.ok&&!e.undone,li=el('li','pd-fixed__row'+(e.ok?'':' is-failed')+(e.undone?' is-undone':'')),t=el('span','pd-tick'+(good?'':' pd-tick--warn'),good?'✓':(e.undone?'↺':'!'));t.setAttribute('aria-hidden','true');li.appendChild(t);
+var b=el('div');b.appendChild(el('span','pd-fixed__did',e.did||e.title));b.appendChild(el('span','pd-fixed__when',(e.undone?'Undone ':e.ok?'':'Not changed · ')+ago(e.undone||e.time)));li.appendChild(b);
+if(e.undoable&&!e.undone){var u=el('button','button pd-fixed__undo','Undo');u.type='button';u.setAttribute('aria-label','Undo: '+(e.did||e.title));u.addEventListener('click',function(){undo(e.key,u);});li.appendChild(u);}ul.appendChild(li);});}
+function undo(key,btn){btn.setAttribute('aria-busy','true');btn.disabled=true;post('prasat_ai_fix',{stage:'undo',key:key}).then(function(j){var d=j&&j.data||{};if(j&&j.success){C.fixes=d.fixes;if(d.check){C.last=d.check;show(d.check);}renderFixes(d.fixes);say('Change undone.');}else{btn.disabled=false;btn.removeAttribute('aria-busy');say(d.message||'Could not undo that change.');}});}
+function stage(t,sub){label(t);var b=plan.querySelector('.pd-plan__busy');b.textContent='';if(window.PrasatUI){var L=PrasatUI.loader('glow',{text:sub});b.appendChild(L.el);}else b.textContent=sub;}
+function optimize(){if(ai.getAttribute('aria-busy')==='true')return;clearTimeout(doneT);ai.removeAttribute('data-state');ai.setAttribute('aria-busy','true');say('');plan.hidden=false;plan.querySelector('.pd-plan__summary').textContent='';plan.querySelector('.pd-plan__steps').textContent='';plan.querySelector('.pd-plan__meta').textContent='';if(fixed)fixed.querySelector('.pd-fixed__note').textContent='';
 plan.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'nearest'});
-post('prasat_ai_optimize',{}).then(function(j){var d=j&&j.data||{};if(d.check){C.last=d.check;show(d.check);}if(j&&j.success){C.plan=d.plan;renderPlan(d.plan);say('Plan ready.');ai.setAttribute('data-state','done');label('Plan ready');doneT=setTimeout(function(){ai.removeAttribute('data-state');label('Optimize with AI');},2400);}else{label('Optimize with AI');busy.textContent='';if(C.plan)renderPlan(C.plan);else plan.hidden=true;say(ERR[d.code]||'Smart AI Optimize could not finish. Please try again.');if(d.code==='invalid_premium_key'||d.code==='no_key'){note.hidden=false;}}}).then(function(){ai.removeAttribute('aria-busy');});}
+stage('Backing up…','Lifeboat is saving a backup of your database before anything changes…');
+post('prasat_ai_fix',{stage:'backup'}).then(function(j){var d=j&&j.data||{};if(!j||!j.success){if(d.code==='no_key'){note.hidden=false;}return makePlan();}
+if(d.status==='none')return applyFixes('No backup plugin is active, so only changes that can be undone were made.');if(d.status==='done')return applyFixes('');if(d.status==='running')return waitBackup(d.id,Date.now());
+renderFixes(C.fixes,'The backup could not start'+(d.message?' ('+d.message+')':'')+', so nothing was changed.');makePlan();});}
+function waitBackup(id,t0){setTimeout(function(){post('prasat_ai_fix',{stage:'backup_status',id:id}).then(function(j){var d=j&&j.data||{};if(d.status==='done')return applyFixes('');
+if(d.status==='running'&&Date.now()-t0<900000){stage('Backing up…','Lifeboat is saving a backup before anything changes…'+(d.percent?' '+d.percent+'%':''));return waitBackup(id,t0);}
+renderFixes(C.fixes,'The backup did not finish'+(d.message?' ('+d.message+')':'')+', so nothing was changed.');makePlan();});},2500);}
+function applyFixes(first){stage('Fixing…','Making the fixes that are safe to make…');post('prasat_ai_fix',{stage:'apply'}).then(function(j){var d=j&&j.data||{};if(j&&j.success){C.fixes=d.fixes;if(d.check){C.last=d.check;show(d.check);}
+var t=d.applied?((first||'Lifeboat backed up your database first.')+' Score '+d.before+' → '+d.check.score+'. Each change can be undone.'):'Nothing could be fixed automatically this time.';renderFixes(d.fixes,t);}else renderFixes(C.fixes,'The fixes could not run, so nothing was changed.');makePlan();});}
+function makePlan(){stage('Writing your plan…','The AI is writing a plan for what is left…');var busy=plan.querySelector('.pd-plan__busy');
+post('prasat_ai_optimize',{}).then(function(j){var d=j&&j.data||{};if(d.check){C.last=d.check;show(d.check);}if(j&&j.success){C.plan=d.plan;renderPlan(d.plan);say('Done.');ai.setAttribute('data-state','done');label('Done');doneT=setTimeout(function(){ai.removeAttribute('data-state');label('Optimize with AI');},2400);}else{label('Optimize with AI');busy.textContent='';if(C.plan)renderPlan(C.plan);else if(!C.fixes||!C.fixes.length)plan.hidden=true;say(ERR[d.code]||'Smart AI Optimize could not finish. Please try again.');if(d.code==='invalid_premium_key'||d.code==='no_key'){note.hidden=false;}}}).then(function(){ai.removeAttribute('aria-busy');});}
 if(ai)ai.addEventListener('click',function(){if(C.ai){optimize();return;}note.hidden=false;var inp=document.getElementById('pd-ai-key');if(inp)inp.focus();});
 if(kf)kf.addEventListener('submit',function(e){e.preventDefault();var inp=document.getElementById('pd-ai-key'),btn=kf.querySelector('button');btn.setAttribute('aria-busy','true');post('prasat_ai_key',{key:inp.value}).then(function(j){if(j&&j.success){C.ai=true;inp.value='';note.hidden=true;keyline.hidden=false;say('Key saved. Click "Optimize with AI".');ai.focus();}else{say(ERR[j&&j.data&&j.data.code]||'Could not save the key.');}}).then(function(){btn.removeAttribute('aria-busy');});});
 var rm=document.querySelector('.pd-ai__remove');if(rm)rm.addEventListener('click',function(){post('prasat_ai_key',{key:''}).then(function(j){if(j&&j.success){C.ai=false;C.plan=null;keyline.hidden=true;if(plan)plan.hidden=true;say('Premium key removed.');}});});
 if(C.plan)renderPlan(C.plan);
+if(C.fixes&&C.fixes.length)renderFixes(C.fixes);
 })();
 JS;
 		}
@@ -727,6 +920,11 @@ JS;
 					<section class="pd-card pd-plan" id="pd-ai-plan" aria-labelledby="pd-plan-t" hidden>
 						<div class="pd-card__head"><h2 id="pd-plan-t">Your Smart AI plan</h2><span class="pd-plan__meta"></span></div>
 						<div class="pd-plan__busy"></div>
+						<div class="pd-fixed" hidden>
+							<h3>Fixed for you</h3>
+							<p class="pd-fixed__note"></p>
+							<ul class="pd-fixed__list"></ul>
+						</div>
 						<p class="pd-plan__summary"></p>
 						<ol class="pd-plan__steps"></ol>
 					</section>
