@@ -16,9 +16,10 @@ if ( ! class_exists( 'Prasat_Hub', false ) ) {
 	final class Prasat_Hub {
 
 		const SLUG    = 'prasat-digital';
-		const VERSION = '1.0.8';
+		const VERSION = '1.0.9';
 		const CAP     = 'manage_options';
 		const SITE    = 'https://www.prasatdigital.com';
+		const PLUGINS = 'https://www.prasatdigital.com/plugins';
 		const FOUNDER = 'Thyyarith';
 		const MOTTO   = 'Every website deserves to stand strong, load fast and stay safe.';
 
@@ -112,7 +113,7 @@ if ( ! class_exists( 'Prasat_Hub', false ) ) {
 			foreach ( array( 'updraftplus/updraftplus.php', 'backwpup/backwpup.php', 'duplicator/duplicator.php', 'all-in-one-wp-migration/all-in-one-wp-migration.php', 'jetpack/jetpack.php', 'lifeboat-backup/lifeboat-backup.php' ) as $b ) {
 				$backup = $backup || is_plugin_active( $b );
 			}
-			$out[] = self::item( 'backup_plugin', $backup ? 'pass' : 'fail', 'critical', 'The site is backed up', $backup ? 'A backup plugin is active.' : 'No backup plugin is active. If the site breaks or gets hacked there is nothing to restore.', self::SITE, 'Get Lifeboat' );
+			$out[] = self::item( 'backup_plugin', $backup ? 'pass' : 'fail', 'critical', 'The site is backed up', $backup ? 'A backup plugin is active.' : 'No backup plugin is active. If the site breaks or gets hacked there is nothing to restore.', self::plugin_url( 'lifeboat' ), 'Get Lifeboat' );
 			return $out;
 		}
 
@@ -206,7 +207,7 @@ if ( ! class_exists( 'Prasat_Hub', false ) ) {
 			$out = array();
 			foreach ( self::catalog() as $id => $p ) {
 				if ( ! is_plugin_active( $p['file'] ) ) {
-					$out[] = array( 'id' => $id, 'name' => $p['name'], 'desc' => $p['desc'] );
+					$out[] = array( 'id' => $id, 'name' => $p['name'], 'desc' => $p['desc'], 'url' => self::plugin_url( $id ) );
 				}
 			}
 			return $out;
@@ -250,6 +251,45 @@ if ( ! class_exists( 'Prasat_Hub', false ) ) {
 		/** Relay address; a site can point elsewhere with define( 'PRASAT_AI_RELAY', '...' ) for testing. */
 		private static function ai_relay() {
 			return untrailingslashit( defined( 'PRASAT_AI_RELAY' ) ? PRASAT_AI_RELAY : self::AI_RELAY );
+		}
+
+		/** True when this site has a Premium key (Smart AI features are switched on). */
+		public static function has_premium() {
+			return '' !== (string) get_option( self::AI_KEY_OPTION, '' );
+		}
+
+		/**
+		 * Sends JSON to the Prasat AI relay with the site's Premium key, for any Prasat plugin.
+		 *
+		 * @return array|WP_Error The decoded answer, or an error whose code is the relay's
+		 *                        (no_key, invalid_premium_key, busy, unreachable, ai_unavailable…).
+		 */
+		public static function ai_request( $path, array $body, $timeout = 60 ) {
+			$key = (string) get_option( self::AI_KEY_OPTION, '' );
+			if ( '' === $key ) {
+				return new WP_Error( 'no_key', 'Add your Premium key on the Prasat Digital dashboard first.' );
+			}
+			$res = wp_remote_post(
+				self::ai_relay() . '/' . ltrim( $path, '/' ),
+				array(
+					'timeout' => $timeout,
+					'headers' => array(
+						'Authorization' => 'Bearer ' . $key,
+						'Content-Type'  => 'application/json',
+					),
+					'body'    => wp_json_encode( $body ),
+				)
+			);
+			if ( is_wp_error( $res ) ) {
+				return new WP_Error( 'unreachable', 'Could not reach Smart AI. Please try again shortly.' );
+			}
+			$code = (int) wp_remote_retrieve_response_code( $res );
+			$data = json_decode( wp_remote_retrieve_body( $res ), true );
+			if ( 200 === $code && is_array( $data ) ) {
+				return $data;
+			}
+			$err = is_array( $data ) && ! empty( $data['error'] ) ? sanitize_key( $data['error'] ) : 'ai_unavailable';
+			return new WP_Error( $err, 'Smart AI could not finish (' . $err . ').', array( 'status' => $code ) );
 		}
 
 		private static function ai_ready() {
@@ -508,6 +548,11 @@ if ( ! class_exists( 'Prasat_Hub', false ) ) {
 			wp_send_json_error( array( 'code' => 'bad_stage' ), 400 );
 		}
 
+		/** A plugin's section on prasatdigital.com/plugins (the page opens that plugin's details). */
+		public static function plugin_url( $id = '' ) {
+			return self::PLUGINS . ( $id && isset( self::catalog()[ $id ] ) ? '#' . $id : '' );
+		}
+
 		/** URL of a family icon (prasat, bastion, lifeboat, slipstream, compass, featherweight). */
 		public static function icon_url( $id ) {
 			$assets = self::assets_url();
@@ -694,7 +739,7 @@ if ( ! class_exists( 'Prasat_Hub', false ) ) {
 					}
 				}
 				if ( ! $data ) {
-					$out['tiles'][] = array( 'area' => $areas[ $id ], 'value' => '—', 'label' => $p['name'], 'sub' => is_plugin_active( $p['file'] ) ? 'Update to see its numbers here' : 'Not installed on this site', 'tone' => 'muted', 'url' => is_plugin_active( $p['file'] ) ? admin_url( 'admin.php?page=' . $p['page'] ) : self::SITE );
+					$out['tiles'][] = array( 'area' => $areas[ $id ], 'value' => '—', 'label' => $p['name'], 'sub' => is_plugin_active( $p['file'] ) ? 'Update to see its numbers here' : 'Not installed on this site', 'tone' => 'muted', 'url' => is_plugin_active( $p['file'] ) ? admin_url( 'admin.php?page=' . $p['page'] ) : self::plugin_url( $id ) );
 					continue;
 				}
 				foreach ( array( 'tiles', 'activity', 'charts', 'jobs' ) as $k ) {
@@ -792,7 +837,7 @@ todo.slice(0,5).forEach(function(i){list.appendChild(row(i));});
 out.textContent='';out.hidden=true;
 var rest=todo.slice(5),groups={},keys=[];rest.forEach(function(i){if(!groups[i.plugin]){groups[i.plugin]=[];keys.push(i.plugin);}groups[i.plugin].push(i);});
 keys.forEach(function(k){var g=el('div','pd-check__group');g.appendChild(el('h3',null,AREA[k]||k));var ul=el('ul','pd-fix__list');groups[k].forEach(function(i){ul.appendChild(row(i));});g.appendChild(ul);out.appendChild(g);});
-if(r.missing&&r.missing.length){var g2=el('div','pd-check__group');g2.appendChild(el('h3',null,'Not covered yet'));var ul2=el('ul','pd-fix__list');r.missing.forEach(function(m){ul2.appendChild(row({status:'info',severity:'low',plugin:m.id,title:m.name,detail:m.desc,fix_url:'https://www.prasatdigital.com',fix_label:'Learn more'}));});g2.appendChild(ul2);out.appendChild(g2);}
+if(r.missing&&r.missing.length){var g2=el('div','pd-check__group');g2.appendChild(el('h3',null,'Not covered yet'));var ul2=el('ul','pd-fix__list');r.missing.forEach(function(m){ul2.appendChild(row({status:'info',severity:'low',plugin:m.id,title:m.name,detail:m.desc,fix_url:m.url||'https://www.prasatdigital.com/plugins',fix_label:'Learn more'}));});g2.appendChild(ul2);out.appendChild(g2);}
 if(passed.length){var d=el('details','pd-check__passed');d.appendChild(el('summary',null,passed.length+' checks passed'));var ul3=el('ul','pd-fix__list');passed.forEach(function(i){ul3.appendChild(row(i));});d.appendChild(ul3);out.appendChild(d);}
 if(more){var hasMore=out.childNodes.length>0;more.hidden=!hasMore;more.setAttribute('aria-expanded','false');more.textContent=rest.length?'Show '+rest.length+' more and passed checks':'Show passed checks';}}
 if(more)more.addEventListener('click',function(){var open=out.hidden;out.hidden=!open;more.setAttribute('aria-expanded',open?'true':'false');more.textContent=open?'Show less':(more.textContent);});
@@ -1012,7 +1057,7 @@ JS;
 										<?php endif; ?>
 									<?php else : ?>
 										<span class="pd-badge">Not installed</span>
-										<a class="button" href="<?php echo esc_url( self::SITE ); ?>" target="_blank" rel="noopener">Learn more</a>
+										<a class="button" href="<?php echo esc_url( self::plugin_url( $id ) ); ?>" target="_blank" rel="noopener">Learn more</a>
 									<?php endif; ?>
 								</div>
 							</section>
